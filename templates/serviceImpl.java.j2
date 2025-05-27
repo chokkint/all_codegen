@@ -1,0 +1,28 @@
+package {{ package_name }}.service.impl;
+
+import {{ package_name }}.service.{{ service_class_name }};
+import {{ package_name }}.dto.{{ dto_class_name }};
+import org.springframework.stereotype.Service;
+import java.util.List;
+import java.util.ArrayList;
+
+@Service
+public class {{ service_impl_class_name }} implements {{ service_class_name }}  {
+    @Override
+    public List<{{ dto_class_name }}> query{{ page_class_name }}({% for param in query_params %}{{ param.java_type }} {{ param.java_name }}{% if not loop.last %}, {% endif %}{% endfor %}) {
+        // TODO: 实现
+        return new ArrayList<>();
+    }
+    @Override
+    public void add{{ page_class_name }}({{ dto_class_name }} dto) {
+        // TODO: 实现
+    }
+    @Override
+    public void update{{ page_class_name }}({{ dto_class_name }} dto) {
+        // TODO: 实现
+    }
+    @Override
+    public void delete{{ page_class_name }}({{ pk_field_java_type }} {{ pk_field_java_name }}) {
+        // TODO: 实现
+    }
+}

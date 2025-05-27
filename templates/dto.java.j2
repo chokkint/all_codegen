@@ -1,0 +1,21 @@
+package {{ package_name }}.dto;
+
+import com.hg.common.base.BaseDto;
+
+public class {{ dto_class_name }} extends BaseDto {
+
+{% for field in fields %}
+    private {{ field.java_type }} {{ field.java_name }};
+{% endfor %}
+
+    // getter/setter
+{% for field in fields %}
+
+    public {{ field.java_type }} get{{ field.java_name|upper_first }}() {
+        return {{ field.java_name }};
+    }
+    public void set{{ field.java_name|upper_first }}({{ field.java_type }} {{ field.java_name }}) {
+        this.{{ field.java_name }} = {{ field.java_name }};
+    }
+{% endfor %}
+}

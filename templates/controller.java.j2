@@ -1,0 +1,40 @@
+package {{ package_name }}.controller;
+
+import com.hg.common.base.BaseController;
+import {{ package_name }}.dto.{{ dto_class_name }};
+import {{ package_name }}.service.{{ service_class_name }};
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+@RestController
+@RequestMapping("/pnx/api/pages")
+public class {{ controller_class_name }} extends BaseController {
+
+    @Autowired
+    private {{ service_class_name }} {{ service_instance_name }};
+
+    @GetMapping
+    public List<{{ dto_class_name }}> query{{ page_class_name }}(
+{%- for param in query_params %}
+        @RequestParam(value = "{{ param.name }}", required = false) {{ param.java_type }} {{ param.java_name }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+    ) {
+        return {{ service_instance_name }}.query{{ page_class_name }}({{ query_param_names | join(', ') }});
+    }
+
+    @PostMapping
+    public void add{{ page_class_name }}(@RequestBody {{ dto_class_name }} dto) {
+        {{ service_instance_name }}.add{{ page_class_name }}(dto);
+    }
+
+    @PutMapping
+    public void update{{ page_class_name }}(@RequestBody {{ dto_class_name }} dto) {
+        {{ service_instance_name }}.update{{ page_class_name }}(dto);
+    }
+
+    @DeleteMapping
+    public void delete{{ page_class_name }}(@RequestParam(value = "{{ pk_field_name }}") {{ pk_field_java_type }} {{ pk_field_java_name }}) {
+        {{ service_instance_name }}.delete{{ page_class_name }}({{ pk_field_java_name }});
+    }
+}

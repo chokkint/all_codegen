@@ -1,0 +1,9 @@
+package {{ package_name }}.repository;
+
+import com.hg.common.base.BaseRepository;
+import {{ package_name }}.entity.{{ entity_class_name }};
+
+public interface {{ repository_class_name }} extends BaseRepository<{{ entity_class_name }}, {{ pk_type }}> {
+    // DEBUG: pk_type is "{{ pk_type }}"
+    // 可扩展自定义方法
+}

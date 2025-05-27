@@ -1,0 +1,12 @@
+# Python虚拟环境
+venv/
+.env/
+# VSCode配置
+.vscode/
+# 输出目录
+output/
+dist/
+build/
+# Python编译产生的文件
+__pycache__/
+*.pyc

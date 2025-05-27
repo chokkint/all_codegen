@@ -1,0 +1,25 @@
+package {{ package_name }}.entity;
+
+import com.hg.common.base.BaseEntity;
+import jakarta.persistence.*;  // Spring Boot 3.x
+
+@Entity
+@Table(name = "{{ table_name }}")
+public class {{ entity_class_name }} extends BaseEntity {
+
+{% for field in fields %}
+    @Column(name = "{{ field.db_column }}")
+    private {{ field.java_type }} {{ field.java_name }};
+{% endfor %}
+
+    // getter/setter
+{% for field in fields %}
+
+    public {{ field.java_type }} get{{ field.java_name|upper_first }}() {
+        return {{ field.java_name }};
+    }
+    public void set{{ field.java_name|upper_first }}({{ field.java_type }} {{ field.java_name }}) {
+        this.{{ field.java_name }} = {{ field.java_name }};
+    }
+{% endfor %}
+}

@@ -1,0 +1,29 @@
+# {{ artifact_id }}
+
+This project is an auto-generated Spring Boot microservice. System name: {{ package_name }}.
+
+## Directory Structure
+- entity/  System entities
+- dao/     System DAO
+- model/   System business models
+- pageX/   Page packages, including controller/service/dto, etc.
+
+## Quick Start
+```shell
+mvn clean install
+java -jar target/{{ artifact_id }}-1.0.0.jar
+
+Dependencies
+
+Spring Boot 3.0
+Nacos 1.8
+common-backend (for base classes and common capabilities)
+
+## lombok vscode使用注意事项
+在 VS Code settings.json 添加：
+{
+    "java.compile.nullAnalysis.mode": "automatic",
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "java.jdt.ls.vmargs": "-javaagent:${workspaceFolder}/path/to/lombok.jar" //增加这一行
+}
+执行 Maven: Reload Project 或 mvn clean install

@@ -1,0 +1,12 @@
+package {{ package_name }}.service;
+
+import com.hg.common.base.BaseService;
+import {{ package_name }}.dto.{{ dto_class_name }};
+import java.util.List;
+
+public interface {{ service_class_name }} extends BaseService {
+    List<{{ dto_class_name }}> query{{ page_class_name }}({{ query_params_str }});
+    void add{{ page_class_name }}({{ dto_class_name }} dto);
+    void update{{ page_class_name }}({{ dto_class_name }} dto);
+    void delete{{ page_class_name }}({{ pk_field_java_type }} {{ pk_field_java_name }});
+}

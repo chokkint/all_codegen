@@ -1,0 +1,287 @@
+{
+  "type": "page",
+  "body": [
+    {
+      "type": "crud",
+      "syncLocation": false,
+      "api": {
+        "method": "get",
+        "url": "/pnx/api/pages"
+      },
+      "bulkActions": [],
+      "itemActions": [],
+      "bindTable": "86409fdd-4d1c-4397-8e47-bd9a8f220428",
+      "tableName": "ODS_TRADE_INFO",
+      "filterEnabledList": [
+        {
+          "label": "分行",
+          "value": "ODS_BRANCH_CODE"
+        },
+        {
+          "label": "交易编号",
+          "value": "TRADE_NO"
+        },
+        {
+          "label": "业务编号",
+          "value": "REF_NO"
+        },
+        {
+          "label": "业务日期",
+          "value": "ODS_BUSI_DT"
+        }
+      ],
+      "filter": {
+        "title": "查询条件",
+        "columnCount": 3,
+        "mode": "horizontal",
+        "body": [
+          {
+            "type": "input-text",
+            "label": "分行",
+            "name": "ODS_BRANCH_CODE",
+            "id": "u:2a082682df8c"
+          },
+          {
+            "type": "input-text",
+            "label": "交易编号",
+            "name": "TRADE_NO",
+            "id": "u:c3f7182c705e"
+          },
+          {
+            "type": "input-text",
+            "label": "业务编号",
+            "name": "REF_NO",
+            "id": "u:16080d6b914c"
+          },
+          {
+            "type": "input-text",
+            "label": "业务日期",
+            "name": "ODS_BUSI_DT",
+            "id": "u:eef5a529b4fe"
+          }
+        ],
+        "id": "u:b637adba3d16",
+        "actions": [
+          {
+            "type": "submit",
+            "label": "搜索",
+            "primary": true,
+            "id": "u:70bfa7d33807"
+          }
+        ],
+        "feat": "Insert"
+      },
+      "headerToolbar": [
+        {
+          "label": "新增",
+          "type": "button",
+          "actionType": "dialog",
+          "level": "primary",
+          "editorSetting": {
+            "behavior": "create"
+          },
+          "dialog": {
+            "title": "新增",
+            "body": {
+              "type": "form",
+              "api": {
+                "method": "post",
+                "url": "/pnx/api/pages"
+              },
+              "body": [
+                {
+                  "type": "input-text",
+                  "name": "ODS_BRANCH_CODE",
+                  "label": "分行"
+                },
+                {
+                  "type": "input-text",
+                  "name": "TRADE_NO",
+                  "label": "交易编号"
+                },
+                {
+                  "type": "input-text",
+                  "name": "REF_NO",
+                  "label": "业务编号"
+                },
+                {
+                  "type": "input-text",
+                  "name": "ODS_ID",
+                  "label": "主键"
+                },
+                {
+                  "type": "input-text",
+                  "name": "ODS_BUSI_DT",
+                  "label": "业务日期"
+                }
+              ]
+            }
+          },
+          "id": "u:aa6f51165505"
+        },
+        "bulkActions"
+      ],
+      "columns": [
+        {
+          "name": "ODS_BRANCH_CODE",
+          "label": "分行",
+          "type": "text",
+          "id": "u:18a718102182"
+        },
+        {
+          "name": "TRADE_NO",
+          "label": "交易编号",
+          "type": "text",
+          "id": "u:46e805f3ef4f"
+        },
+        {
+          "name": "REF_NO",
+          "label": "业务编号",
+          "type": "text",
+          "id": "u:6ca73b15ff4a"
+        },
+        {
+          "name": "ODS_ID",
+          "label": "主键",
+          "type": "text",
+          "id": "u:ab55a1a17218"
+        },
+        {
+          "name": "ODS_BUSI_DT",
+          "label": "业务日期",
+          "type": "text",
+          "id": "u:b330db4fc3a4"
+        },
+        {
+          "type": "operation",
+          "label": "操作",
+          "buttons": [
+            {
+              "label": "编辑",
+              "type": "button",
+              "actionType": "dialog",
+              "level": "link",
+              "editorSetting": {
+                "behavior": "update"
+              },
+              "dialog": {
+                "title": "编辑",
+                "body": {
+                  "type": "form",
+                  "api": {
+					"method": "put",
+					"url": "/pnx/api/pages"
+				  },
+                  "initApi": "",
+                  "body": [
+                    {
+                      "name": "ODS_BRANCH_CODE",
+                      "label": "分行",
+                      "type": "input-text"
+                    },
+                    {
+                      "name": "TRADE_NO",
+                      "label": "交易编号",
+                      "type": "input-text"
+                    },
+                    {
+                      "name": "REF_NO",
+                      "label": "业务编号",
+                      "type": "input-text"
+                    },
+                    {
+                      "name": "ODS_ID",
+                      "label": "主键",
+                      "type": "input-text"
+                    },
+                    {
+                      "name": "ODS_BUSI_DT",
+                      "label": "业务日期",
+                      "type": "input-text"
+                    }
+                  ]
+                }
+              },
+              "id": "u:6bdc096734a8"
+            },
+            {
+              "label": "查看",
+              "type": "button",
+              "actionType": "dialog",
+              "level": "link",
+              "editorSetting": {
+                "behavior": "view"
+              },
+              "dialog": {
+                "title": "查看详情",
+                "body": {
+                  "type": "form",
+                  "initApi": "",
+                  "body": [
+                    {
+                      "name": "ODS_BRANCH_CODE",
+                      "label": "分行",
+                      "type": "static"
+                    },
+                    {
+                      "name": "TRADE_NO",
+                      "label": "交易编号",
+                      "type": "static"
+                    },
+                    {
+                      "name": "REF_NO",
+                      "label": "业务编号",
+                      "type": "static"
+                    },
+                    {
+                      "name": "ODS_ID",
+                      "label": "主键",
+                      "type": "static"
+                    },
+                    {
+                      "name": "ODS_BUSI_DT",
+                      "label": "业务日期",
+                      "type": "static"
+                    }
+                  ]
+                }
+              },
+              "id": "u:a875d710fb1b"
+            },
+            {
+              "type": "button",
+              "label": "删除",
+              "actionType": "ajax",
+              "level": "link",
+              "className": "text-danger",
+              "confirmText": "确定要删除？",
+              "api": {
+                "method": "delete",
+                "url": "/pnx/api/pages"
+              },
+              "editorSetting": {
+                "behavior": "delete"
+              },
+              "id": "u:da53e71402dc"
+            }
+          ],
+          "id": "u:f7213e2188f6"
+        }
+      ],
+      "id": "u:582594694135",
+      "perPageAvailable": [
+        5,
+        10,
+        20,
+        50,
+        100
+      ],
+      "messages": {}
+    }
+  ],
+  "id": "u:7dd5705220e1",
+  "asideResizor": false,
+  "pullRefresh": {
+    "disabled": true
+  }
+}
