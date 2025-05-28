@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import argparse
+#kaka test
 
 def camel_case(s):
     """下划线/中横线/点分隔字符串转为驼峰（首字母大写），如 'ods_trade_info' -> 'OdsTradeInfo'"""
