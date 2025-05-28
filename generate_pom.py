@@ -126,7 +126,7 @@ if __name__ == "__main__":
         }
     ]
     repositories = [
-        {"id": "nexus-ods", "url": "http://192.168.50.126:8099/repository/maven-public/"}
+        {"id": "nexus-ods", "url": "http://45.153.131.127:8099/repository/maven-public/"}
     ]
     system_name = "test"
 
