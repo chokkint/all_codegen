@@ -3,22 +3,144 @@ import sys
 import json
 import argparse
 
+DEBUG_ON = False
+def debug(msg, *args):
+    if DEBUG_ON:
+        print("[DEBUG]", msg, *args)
+
+# ---- 对象收集辅助 ----
+class ObjectCollector:
+    def __init__(self):
+        self.objs = []
+        self.all_types = set()
+        self.all_fields = set()
+
+    def record(self, typ, name, path, fields):
+        self.objs.append({
+            "type": typ,
+            "name": name,
+            "path": path,
+            "fields": sorted(list(fields))
+        })
+        self.all_types.add(typ)
+        self.all_fields.update(fields)
+
+    def print_summary(self, prefix=""):
+        print(f"\n==== AMIS对象统计 {prefix} ====")
+        for o in self.objs:
+            print(f"  [type:{o['type']:<10}] name:{o['name']:<15} path:{o['path']}")
+            print(f"     字段: {o['fields']}")
+        print(f"全部对象类型: {sorted(self.all_types)}")
+        print(f"全部字段: {sorted(self.all_fields)}")
+        print("=====================\n")
+
+class StatCollector:
+    def __init__(self):
+        self.table_count = 0
+        self.tables = []
+        self.global_fields = set()
+        self.global_attrs = set()
+
+    def record_table(self, name, t, fields, apis):
+        self.table_count += 1
+        field_list = sorted(list(fields))
+        api_list = [f"{a['op']}:{a['method']} {a['url']}" for a in apis]
+        self.tables.append({
+            'name': name,
+            'type': t,
+            'field_count': len(fields),
+            'api_count': len(apis),
+            'field_list': field_list,
+            'api_list': api_list
+        })
+        self.global_fields.update(field_list)
+
+    def record_attrs(self, d):
+        if isinstance(d, dict):
+            self.global_attrs.update(d.keys())
+
+    def print_summary(self, prefix="", show_attrs=False):
+        print(f"\n==== 统计汇总 {prefix} ====")
+        print("命中表格区块数量:", self.table_count)
+        for t in self.tables:
+            print(f"  表名: {t['name']}  type: {t['type']}  字段数:{t['field_count']}  API数:{t['api_count']}")
+            print(f"    字段: {t['field_list']}")
+            print(f"    APIs: {t['api_list']}")
+        if show_attrs:
+            print("全局属性（所有dict key）:", sorted(self.global_attrs))
+        print("全局字段（所有提取字段）:", sorted(self.global_fields))
+        print("====================\n")
+
+# 横向递归采集所有字段（仅dict带name的+递归list/dict所有下级）
+def collect_all_fields(node, fields=None):
+    if fields is None:
+        fields = set()
+    if isinstance(node, dict):
+        if 'name' in node and isinstance(node['name'], str):
+            fields.add(node['name'])
+        for v in node.values():
+            collect_all_fields(v, fields)
+    elif isinstance(node, list):
+        for item in node:
+            collect_all_fields(item, fields)
+    return fields
+
+# 递归收集所有 amis 对象及其字段
+def scan_amis_objects(node, collector, path="root"):
+    if isinstance(node, dict):
+        typ = node.get('type')
+        name = node.get('label', node.get('title', ''))
+        fields = set()
+        for k in ['columns', 'body', 'fields']:
+            v = node.get(k)
+            if v:
+                fields.update(collect_all_fields(v))
+        if typ in ('form', 'dialog', 'drawer'):
+            if 'body' in node:
+                fields.update(collect_all_fields(node['body']))
+        if typ:
+            collector.record(typ, name, path, fields)
+        for k, v in node.items():
+            scan_amis_objects(v, collector, f"{path}.{k}")
+    elif isinstance(node, list):
+        for idx, item in enumerate(node):
+            scan_amis_objects(item, collector, f"{path}[{idx}]")
+
 def camel_case(s):
-    """下划线/中横线/点分隔字符串转为驼峰（首字母大写），如 'ods_trade_info' -> 'OdsTradeInfo'"""
     parts = s.replace('-', '_').replace('.', '_').split('_')
     return ''.join([w[:1].upper() + w[1:].lower() for w in parts if w])
 
 def amis_type_to_java_type(t):
-    """根据 amis 控件类型推断 Java 类型"""
     if t in ('input-date', 'input-datetime'):
         return 'java.util.Date'
     if t in ('input-number',):
         return 'Integer'
     return 'String'
 
+def is_table_crud_type(type_str):
+    if not isinstance(type_str, str):
+        return False
+    t = type_str.lower()
+    return t.startswith('crud') or t.startswith('table')
+
+def find_table_crud_blocks(data, stat: StatCollector, path="root"):
+    result = []
+    if isinstance(data, dict):
+        t = data.get('type')
+        stat.record_attrs(data)
+        if is_table_crud_type(t):
+            result.append(data)
+        for v in data.values():
+            result.extend(find_table_crud_blocks(v, stat))
+    elif isinstance(data, list):
+        for item in data:
+            result.extend(find_table_crud_blocks(item, stat))
+    return result
+
 def extract_fields_from_list(lst):
-    """提取字段信息，常用于 form/filter 的 body 字段"""
     fields = []
+    if not isinstance(lst, list):
+        return fields
     for item in lst:
         if isinstance(item, dict) and item.get('name'):
             fields.append({
@@ -30,80 +152,81 @@ def extract_fields_from_list(lst):
     return fields
 
 def extract_crud_apis(crud):
-    """从 crud 区块提取增删查改相关 API 信息，生成 OpenAPI 路径描述基础结构"""
     apis = []
-    # 查询API
-    if 'api' in crud:
+    if isinstance(crud, dict) and 'api' in crud:
         api = crud['api']
+        if not isinstance(api, dict) or 'url' not in api:
+            return apis
         url = api['url']
         method = api.get('method', 'get').lower()
         filter_fields = []
-        if crud.get('filter', {}).get('body'):
-            filter_fields = extract_fields_from_list(crud['filter']['body'])
-        elif 'filterEnabledList' in crud:
-            filter_fields = [{'name': f['value'], 'type': 'String', 'label': f['label']} for f in crud['filterEnabledList']]
+        filter_val = crud.get('filter', {})
+        if isinstance(filter_val, dict) and filter_val.get('body'):
+            filter_fields = extract_fields_from_list(filter_val['body'])
+        elif isinstance(crud.get('filterEnabledList', None), list):
+            filter_fields = [{'name': f['value'], 'type': 'String', 'label': f['label']}
+                             for f in crud['filterEnabledList'] if isinstance(f, dict)]
         apis.append({'url': url, 'method': method, 'fields': filter_fields, 'op': 'query'})
-    # 新增API
-    for tb in crud.get('headerToolbar', []):
-        if isinstance(tb, dict) and tb.get('actionType') == 'dialog' and tb.get('dialog', {}).get('body', {}).get('api', {}).get('method', '').lower() == 'post':
-            add_api = tb['dialog']['body']['api']
+    for tb in crud.get('headerToolbar', []) if isinstance(crud, dict) else []:
+        if not isinstance(tb, dict):
+            continue
+        dialog = tb.get('dialog')
+        dialog_body = dialog.get('body') if isinstance(dialog, dict) else None
+        api_body = dialog_body.get('api') if isinstance(dialog_body, dict) else None
+        if tb.get('actionType') == 'dialog' and isinstance(api_body, dict) and api_body.get('method', '').lower() == 'post':
+            add_api = api_body
             url = add_api['url']
             method = add_api.get('method', 'post').lower()
-            form_body = tb['dialog']['body']['body']
+            form_body = dialog_body.get('body') if isinstance(dialog_body, dict) else []
             add_fields = extract_fields_from_list(form_body)
             apis.append({'url': url, 'method': method, 'fields': add_fields, 'op': 'add'})
-    # 编辑API和删除API
-    for col in crud.get('columns', []):
+    for col in crud.get('columns', []) if isinstance(crud, dict) else []:
+        if not isinstance(col, dict): continue
         if col.get('type') == 'operation':
-            for btn in col.get('buttons', []):
-                # 编辑
-                if btn.get('actionType') == 'dialog' and btn.get('dialog', {}).get('body', {}).get('api', {}).get('method', '').lower() == 'put':
-                    edit_api = btn['dialog']['body']['api']
+            for btn in col.get('buttons', []) if isinstance(col, dict) else []:
+                if not isinstance(btn, dict): continue
+                dialog = btn.get('dialog')
+                dialog_body = dialog.get('body') if isinstance(dialog, dict) else None
+                api_body = dialog_body.get('api') if isinstance(dialog_body, dict) else None
+                if btn.get('actionType') == 'dialog' and isinstance(api_body, dict) and api_body.get('method', '').lower() == 'put':
+                    edit_api = api_body
                     url = edit_api['url']
                     method = edit_api.get('method', 'put').lower()
-                    form_body = btn['dialog']['body']['body']
+                    form_body = dialog_body.get('body') if isinstance(dialog_body, dict) else []
                     edit_fields = extract_fields_from_list(form_body)
                     apis.append({'url': url, 'method': method, 'fields': edit_fields, 'op': 'edit'})
-                # 删除
-                if btn.get('actionType') == 'ajax' and btn.get('api', {}).get('method', '').lower() == 'delete':
-                    del_api = btn['api']
+                del_api = btn.get('api')
+                if btn.get('actionType') == 'ajax' and isinstance(del_api, dict) and del_api.get('method', '').lower() == 'delete':
                     url = del_api['url']
                     method = del_api.get('method', 'delete').lower()
                     apis.append({'url': url, 'method': method, 'fields': [{'name': 'ODS_ID', 'type': 'String', 'label': '主键'}], 'op': 'delete'})
     return apis
 
-def find_crud(data):
-    """递归查找 JSON 结构下所有 type 为 crud 的区块（支持嵌套）"""
-    result = []
-    if isinstance(data, dict):
-        if data.get('type') == 'crud':
-            result.append(data)
-        for v in data.values():
-            result.extend(find_crud(v))
-    elif isinstance(data, list):
-        for item in data:
-            result.extend(find_crud(item))
-    return result
+def extract_table_name(crud_block, amis_file):
+    if isinstance(crud_block, dict):
+        if 'tableName' in crud_block and isinstance(crud_block['tableName'], str):
+            return crud_block['tableName']
+    raise ValueError(f"[ERROR] amis文件 {amis_file} 缺少 tableName 字段，强制终止")
 
-def amis_to_openapi(amis_json, entity_name, table_name):
-    """主转换函数，将 AMIS JSON 结构转为 OpenAPI 3.0 格式"""
-    cruds = find_crud(amis_json)
-    if not cruds:
-        raise ValueError("未发现crud")
+def amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector):
+    if isinstance(amis_json, list):
+        amis_json = {"body": amis_json}
+    scan_amis_objects(amis_json, obj_collector)
+    blocks = find_table_crud_blocks(amis_json, stat)
+    blocks = [x for x in blocks if isinstance(x, dict)]
+    if not blocks:
+        raise ValueError("未发现 type 以 crud/table 开头的对象")
     openapis = []
-    for idx, crud in enumerate(cruds):
+    for idx, crud in enumerate(blocks):
+        real_table_name = extract_table_name(crud, amis_file)
+        all_fields = collect_all_fields(crud)
         apis = extract_crud_apis(crud)
-        # 汇总所有字段（以 name 去重）
-        all_fields = {}
-        for api in apis:
-            for f in api['fields']:
-                all_fields[f['name']] = f
-        # paths 构造
+        stat.record_table(real_table_name, crud.get('type'), all_fields, apis)
         paths = {}
         for api in apis:
             url = api['url']
             method = api['method']
-            fields = api['fields']
+            path_fields = [{'name': f, 'type': 'String', 'label': f} for f in all_fields]
             if url not in paths:
                 paths[url] = {}
             if method == 'get':
@@ -118,7 +241,7 @@ def amis_to_openapi(amis_json, entity_name, table_name):
                             "schema": {"type": "string"},
                             "description": f.get('label')
                         }
-                        for f in fields
+                        for f in path_fields
                     ],
                     "responses": {
                         "200": {
@@ -142,7 +265,7 @@ def amis_to_openapi(amis_json, entity_name, table_name):
                                     "type": "object",
                                     "properties": {
                                         f['name']: {"type": "string", "description": f.get('label')}
-                                        for f in fields
+                                        for f in path_fields
                                     }
                                 }
                             }
@@ -162,24 +285,23 @@ def amis_to_openapi(amis_json, entity_name, table_name):
                             "schema": {"type": "string"},
                             "description": f.get('label')
                         }
-                        for f in fields
+                        for f in path_fields
                     ],
                     "responses": {"200": {"description": "删除成功"}}
                 }
-        # 统一 schema
         schema = {
             "type": "object",
             "properties": {
-                f['name']: {
+                f: {
                     "type": "string",
-                    "javaType": f['type'],
-                    "description": f['label']
-                } for f in all_fields.values()
+                    "javaType": "String",
+                    "description": f
+                } for f in all_fields
             }
         }
         openapis.append({
             "openapi": "3.0.0",
-            "info": {"title": entity_name, "tableName": table_name, "version": "1.0.0"},
+            "info": {"title": entity_name, "tableName": real_table_name, "version": "1.0.0"},
             "paths": paths,
             "components": {
                 "schemas": {
@@ -189,18 +311,52 @@ def amis_to_openapi(amis_json, entity_name, table_name):
         })
     return openapis[0] if len(openapis) == 1 else openapis
 
+def print_conversion_summary(conversion_list, amis_dir, system_name, field_max=4, api_max=2):
+    print("\n======= 本次转换环境信息 =======")
+    print(f"系统名：{system_name}")
+    print(f"AMIS目录：{amis_dir}")
+    print("==============================")
+    print("\n========= 本次转换文件清单 =========")
+    for idx, item in enumerate(conversion_list, 1):
+        print(f"[{idx}] {item['file']}  ({item['table_name']}, {item['type']}, 字段: {item['field_count']}, API: {item['api_count']})")
+        # 字段处理：确保是列表
+        field_list = item['fields']
+        if isinstance(field_list, str):
+            field_list = [s.strip() for s in field_list.split(',') if s.strip()]
+        if len(field_list) > field_max:
+            field_short = ', '.join(field_list[:field_max]) + ', ...'
+        else:
+            field_short = ', '.join(field_list)
+        print(f"    字段: {field_short}")
+        # API处理：确保是列表
+        apis = item['apis']
+        if isinstance(apis, str):
+            apis = [s.strip() for s in apis.split(',') if s.strip()]
+        if len(apis) > api_max:
+            api_short = '\n           '.join(apis[:api_max]) + "\n           ..."
+        else:
+            api_short = '\n           '.join(apis)
+        print(f"    APIs: {api_short}\n")
+    print("=" * 40)
+
+
+
 def main():
     parser = argparse.ArgumentParser(description="AMIS JSON 批量转 OpenAPI JSON，支持多系统多页面结构")
     parser.add_argument('--system-name', default='test', help='系统名，默认为 test')
     parser.add_argument('--amis-dir', default=None, help='amis 源目录，未指定则为 docs/amis_json/<system_name>')
     parser.add_argument('--out-dir', default=None, help='输出目录，未指定则为 docs/openapi_json/<system_name>')
+    parser.add_argument('--debug', action='store_true', help='开启调试日志')
+    parser.add_argument('--show-attrs', action='store_true', help='输出全局属性')
     args = parser.parse_args()
 
-    # 确定目录
+    global DEBUG_ON
+    DEBUG_ON = args.debug
+    show_attrs = args.show_attrs
+
     system_name = args.system_name or 'test'
     amis_dir = args.amis_dir or os.path.join('.', 'docs', 'amis_json', system_name)
     out_dir = args.out_dir or os.path.join('.', 'docs', 'openapi_json', system_name)
-
     amis_dir = os.path.abspath(amis_dir)
     out_dir = os.path.abspath(out_dir)
 
@@ -215,45 +371,78 @@ def main():
             print(f"[FATAL] 无法创建输出目录: {out_dir} - {e}")
             sys.exit(1)
 
-    # 扫描 amis_dir 下所有 .json 文件
+    conversion_list = []
+
     for entry in os.listdir(amis_dir):
         path = os.path.join(amis_dir, entry)
         if os.path.isdir(path):
-            # 兼容子目录（如 amis_json/系统名/模块/*.json）
             for fname in os.listdir(path):
                 if not fname.endswith('.json'):
                     continue
                 amis_file = os.path.join(path, fname)
                 try:
+                    print(f"\n========== 处理文件: {amis_file} ==========")
                     with open(amis_file, encoding='utf-8') as f:
                         amis_json = json.load(f)
                     page_name = os.path.splitext(fname)[0]
                     entity_name = camel_case(page_name)
-                    table_name = page_name.upper()
-                    openapi = amis_to_openapi(amis_json, entity_name, table_name)
+                    stat = StatCollector()
+                    obj_collector = ObjectCollector()
+                    scan_amis_objects(amis_json, obj_collector)
+                    obj_collector.print_summary(f"[{amis_file}]")
+                    openapi = amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector)
                     out_sys_path = os.path.join(out_dir, entry)
                     os.makedirs(out_sys_path, exist_ok=True)
                     out_file = os.path.join(out_sys_path, fname)
                     with open(out_file, 'w', encoding='utf-8') as fw:
                         json.dump(openapi, fw, ensure_ascii=False, indent=2)
                     print(f"[OK] 生成: {out_file}")
+                    stat.print_summary(f"[{amis_file}]", show_attrs=show_attrs)
+                    for t in stat.tables:
+                        conversion_list.append({
+                            'file': os.path.basename(amis_file),
+                            'table_name': t['name'],
+                            'type': t['type'],
+                            'field_count': t['field_count'],
+                            'api_count': t['api_count'],
+                            'fields': ",".join(t['field_list']),
+                            'apis': ",".join(t['api_list'])
+                        })
                 except Exception as e:
                     print(f"[ERROR] 文件 {amis_file} 处理失败: {e}")
         elif entry.endswith('.json'):
             amis_file = path
             try:
+                print(f"\n========== 处理文件: {amis_file} ==========")
                 with open(amis_file, encoding='utf-8') as f:
                     amis_json = json.load(f)
                 page_name = os.path.splitext(entry)[0]
                 entity_name = camel_case(page_name)
-                table_name = page_name.upper()
-                openapi = amis_to_openapi(amis_json, entity_name, table_name)
+                stat = StatCollector()
+                obj_collector = ObjectCollector()
+                scan_amis_objects(amis_json, obj_collector)
+                obj_collector.print_summary(f"[{amis_file}]")
+                openapi = amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector)
                 out_file = os.path.join(out_dir, entry)
                 with open(out_file, 'w', encoding='utf-8') as fw:
                     json.dump(openapi, fw, ensure_ascii=False, indent=2)
                 print(f"[OK] 生成: {out_file}")
+                stat.print_summary(f"[{amis_file}]", show_attrs=show_attrs)
+                for t in stat.tables:
+                    conversion_list.append({
+                        'file': os.path.basename(amis_file),
+                        'table_name': t['name'],
+                        'type': t['type'],
+                        'field_count': t['field_count'],
+                        'api_count': t['api_count'],
+                        'fields': ",".join(t['field_list']),
+                        'apis': ",".join(t['api_list'])
+                    })
             except Exception as e:
                 print(f"[ERROR] 文件 {amis_file} 处理失败: {e}")
+
+    # 转换文件汇总表格
+    print_conversion_summary(conversion_list, amis_dir, system_name)
 
 if __name__ == '__main__':
     main()
