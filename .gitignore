@@ -10,3 +10,4 @@ build/
 # Python编译产生的文件
 __pycache__/
 *.pyc
+docs/

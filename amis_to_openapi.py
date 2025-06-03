@@ -2,7 +2,6 @@ import os
 import sys
 import json
 import argparse
-#kaka test
 
 def camel_case(s):
     """下划线/中横线/点分隔字符串转为驼峰（首字母大写），如 'ods_trade_info' -> 'OdsTradeInfo'"""
@@ -39,7 +38,6 @@ def extract_crud_apis(crud):
         url = api['url']
         method = api.get('method', 'get').lower()
         filter_fields = []
-        # 兼容两种过滤条件配置
         if crud.get('filter', {}).get('body'):
             filter_fields = extract_fields_from_list(crud['filter']['body'])
         elif 'filterEnabledList' in crud:
@@ -108,7 +106,6 @@ def amis_to_openapi(amis_json, entity_name, table_name):
             fields = api['fields']
             if url not in paths:
                 paths[url] = {}
-            # 查询
             if method == 'get':
                 paths[url][method] = {
                     "tags": [entity_name],
@@ -134,7 +131,6 @@ def amis_to_openapi(amis_json, entity_name, table_name):
                         }
                     }
                 }
-            # 新增或编辑
             elif method in ('post', 'put'):
                 paths[url][method] = {
                     "tags": [entity_name],
@@ -154,7 +150,6 @@ def amis_to_openapi(amis_json, entity_name, table_name):
                     },
                     "responses": {"200": {"description": "操作成功"}}
                 }
-            # 删除
             elif method == 'delete':
                 paths[url][method] = {
                     "tags": [entity_name],
@@ -192,19 +187,23 @@ def amis_to_openapi(amis_json, entity_name, table_name):
                 }
             }
         })
-    # 只返回第一个 crud，或可以自行保存全部
     return openapis[0] if len(openapis) == 1 else openapis
 
 def main():
     parser = argparse.ArgumentParser(description="AMIS JSON 批量转 OpenAPI JSON，支持多系统多页面结构")
-    parser.add_argument('--amis-dir', default='./docs/amis_json', help='amis 源目录（可以是系统分目录或直接页面文件）')
-    parser.add_argument('--out-dir', default='./docs/openapi_json', help='输出目录')
+    parser.add_argument('--system-name', default='test', help='系统名，默认为 test')
+    parser.add_argument('--amis-dir', default=None, help='amis 源目录，未指定则为 docs/amis_json/<system_name>')
+    parser.add_argument('--out-dir', default=None, help='输出目录，未指定则为 docs/openapi_json/<system_name>')
     args = parser.parse_args()
 
-    amis_dir = os.path.abspath(args.amis_dir)
-    out_dir = os.path.abspath(args.out_dir)
+    # 确定目录
+    system_name = args.system_name or 'test'
+    amis_dir = args.amis_dir or os.path.join('.', 'docs', 'amis_json', system_name)
+    out_dir = args.out_dir or os.path.join('.', 'docs', 'openapi_json', system_name)
 
-    # 路径存在性检查
+    amis_dir = os.path.abspath(amis_dir)
+    out_dir = os.path.abspath(out_dir)
+
     if not os.path.exists(amis_dir) or not os.path.isdir(amis_dir):
         print(f"[FATAL] amis-dir 不存在或不是目录: {amis_dir}")
         sys.exit(1)
@@ -216,11 +215,11 @@ def main():
             print(f"[FATAL] 无法创建输出目录: {out_dir} - {e}")
             sys.exit(1)
 
-    # 遍历 amis 目录下所有 .json
+    # 扫描 amis_dir 下所有 .json 文件
     for entry in os.listdir(amis_dir):
         path = os.path.join(amis_dir, entry)
         if os.path.isdir(path):
-            # 多系统目录结构 amis_json/系统名/*.json
+            # 兼容子目录（如 amis_json/系统名/模块/*.json）
             for fname in os.listdir(path):
                 if not fname.endswith('.json'):
                     continue
@@ -241,7 +240,6 @@ def main():
                 except Exception as e:
                     print(f"[ERROR] 文件 {amis_file} 处理失败: {e}")
         elif entry.endswith('.json'):
-            # 直接 amis_json/page1.json 结构
             amis_file = path
             try:
                 with open(amis_file, encoding='utf-8') as f:
