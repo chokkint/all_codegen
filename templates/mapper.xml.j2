@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="{{ system_package }}.mapper.{{ mapper_class_name }}">
+
+    <!-- 字段映射关系 -->
+    <resultMap id="BaseResultMap" type="{{ system_package }}.entity.{{ entity_class_name }}">
+    {% for field in fields %}
+        <result column="{{ field.name }}" property="{{ field.java_name }}" />
+    {% endfor %}
+    </resultMap>
+
+    <!-- 分页查询 -->
+    <select id="queryPage" resultMap="BaseResultMap">
+        SELECT
+        {% for field in fields %}
+            {{ field.name }}{% if not loop.last %}, {% endif %}
+        {% endfor %}
+        FROM {{ table_name }}
+        <where>
+        {% for field in fields %}
+            <if test="entity.{{ field.java_name }} != null">
+                AND {{ field.name }} = #{entity.{{ field.java_name }}}
+            </if>
+        {% endfor %}
+        </where>
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <!-- 查询总数 -->
+    <select id="count" resultType="long">
+        SELECT COUNT(1)
+        FROM {{ table_name }}
+        <where>
+        {% for field in fields %}
+            <if test="entity.{{ field.java_name }} != null">
+                AND {{ field.name }} = #{entity.{{ field.java_name }}}
+            </if>
+        {% endfor %}
+        </where>
+    </select>
+
+    <!-- 主键详情 -->
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT
+        {% for field in fields %}
+            {{ field.name }}{% if not loop.last %}, {% endif %}
+        {% endfor %}
+        FROM {{ table_name }}
+        WHERE {{ pk_field_name }} = #{id}
+    </select>
+
+    <!-- 新增 -->
+    <insert id="insert">
+        INSERT INTO {{ table_name }}
+        (
+        {% for field in fields %}
+            {{ field.name }}{% if not loop.last %}, {% endif %}
+        {% endfor %}
+        )
+        VALUES
+        (
+        {% for field in fields %}
+            #{entity.{{ field.java_name }}}{% if not loop.last %}, {% endif %}
+        {% endfor %}
+        )
+    </insert>
+
+    <!-- 更新（只更新非主键字段） -->
+    <update id="update">
+        UPDATE {{ table_name }}
+        <set>
+        {% for field in fields if not field.primary_key %}
+            <if test="entity.{{ field.java_name }} != null">
+                {{ field.name }} = #{entity.{{ field.java_name }}},
+            </if>
+        {% endfor %}
+        </set>
+        WHERE {{ pk_field_name }} = #{entity.{{ pk_field_java_name }}}
+    </update>
+
+    <!-- 删除 -->
+    <delete id="deleteById">
+        DELETE FROM {{ table_name }}
+        WHERE {{ pk_field_name }} = #{id}
+    </delete>
+</mapper>

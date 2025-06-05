@@ -1,4 +1,4 @@
-package {{ package_name }}.entity;
+package {{ system_package }}.entity;
 
 import com.hg.common.base.BaseEntity;
 import jakarta.persistence.*;  // Spring Boot 3.x
@@ -12,14 +12,24 @@ public class {{ entity_class_name }} extends BaseEntity {
     private {{ field.java_type }} {{ field.java_name }};
 {% endfor %}
 
-    // getter/setter
-{% for field in fields %}
+    // 主键 getter，必须与 BaseEntity 保持一致
+    @Override
+    public {{ pk_field.java_type }} getId() {
+        return this.{{ pk_field.java_name }};
+    }
+    public void setId({{ pk_field.java_type }} id) {
+        this.{{ pk_field.java_name }} = id;
+    }
 
+    // 其它 getter/setter
+{% for field in fields %}
+    {% if field.java_name != pk_field.java_name %}
     public {{ field.java_type }} get{{ field.java_name|upper_first }}() {
         return {{ field.java_name }};
     }
     public void set{{ field.java_name|upper_first }}({{ field.java_type }} {{ field.java_name }}) {
         this.{{ field.java_name }} = {{ field.java_name }};
     }
+    {% endif %}
 {% endfor %}
 }

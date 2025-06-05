@@ -1,0 +1,27 @@
+server:
+  port: {{ server_port | default(8080) }}
+spring:
+  application:
+    name: {{ system_name | default('test') }}-backend
+
+  datasource:
+    url: jdbc:mysql://45.153.131.127:3306/{{ db_name | default('test') }}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: Password00
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  cloud:
+    nacos:
+      discovery:
+        enabled: {{ nacos_enabled | default('false') }}
+        server-addr: {{ nacos_addr | default('127.0.0.1:8848') }}
+    discovery:
+      enabled: {{ nacos_enabled | default('false') }}
+
+mybatis:
+  mapper-locations: classpath:mybatis/xml/*.xml
+  type-aliases-package: {{ base_package }}.{{ system_name | lower }}.entity
+
+
+
+

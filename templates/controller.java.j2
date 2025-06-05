@@ -1,40 +1,71 @@
-package {{ package_name }}.controller;
+package {{ page_package }}.controller;
 
 import com.hg.common.base.BaseController;
-import {{ package_name }}.dto.{{ dto_class_name }};
-import {{ package_name }}.service.{{ service_class_name }};
+import com.hg.common.base.BaseService;
+import com.hg.common.response.ApiResponse;
+import com.hg.common.page.PageRequestDTO;
+import com.hg.common.page.PageResult;
+import {{ page_package }}.dto.{{ dto_class_name }};
+import {{ page_package }}.service.{{ service_class_name }};
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
 
 @RestController
-@RequestMapping("/pnx/api/pages")
-public class {{ controller_class_name }} extends BaseController {
+@RequestMapping("{{ api_prefix }}/{{ page_name | lower }}")
+public class {{ controller_class_name }} extends BaseController<{{ dto_class_name }}, {{ dto_class_name }}> {
 
     @Autowired
     private {{ service_class_name }} {{ service_instance_name }};
 
-    @GetMapping
-    public List<{{ dto_class_name }}> query{{ page_class_name }}(
-{%- for param in query_params %}
-        @RequestParam(value = "{{ param.name }}", required = false) {{ param.java_type }} {{ param.java_name }}{{ "," if not loop.last else "" }}
-{%- endfor %}
-    ) {
-        return {{ service_instance_name }}.query{{ page_class_name }}({{ query_param_names | join(', ') }});
+    @Override
+    protected BaseService<{{ dto_class_name }}, {{ dto_class_name }}> getService() {
+        return {{ service_instance_name }};
     }
 
+    /**
+     * 分页查询
+     */
+    @GetMapping("/page")
+    public ApiResponse<PageResult<{{ dto_class_name }}>> page(PageRequestDTO pageRequest, {{ dto_class_name }} queryParam) {
+        return success({{ service_instance_name }}.page(pageRequest, queryParam));
+    }
+
+    /**
+     * 新增
+     */
     @PostMapping
-    public void add{{ page_class_name }}(@RequestBody {{ dto_class_name }} dto) {
-        {{ service_instance_name }}.add{{ page_class_name }}(dto);
+    public ApiResponse<{{ dto_class_name }}> add(@RequestBody {{ dto_class_name }} dto) {
+        {{ dto_class_name }} result = {{ service_instance_name }}.add(dto);
+        return success(result);
     }
 
+    /**
+     * 修改
+     */
     @PutMapping
-    public void update{{ page_class_name }}(@RequestBody {{ dto_class_name }} dto) {
-        {{ service_instance_name }}.update{{ page_class_name }}(dto);
+    public ApiResponse<{{ dto_class_name }}> update(@RequestBody {{ dto_class_name }} dto) {
+        {{ dto_class_name }} result = {{ service_instance_name }}.update(dto);
+        return success(result);
     }
 
-    @DeleteMapping
-    public void delete{{ page_class_name }}(@RequestParam(value = "{{ pk_field_name }}") {{ pk_field_java_type }} {{ pk_field_java_name }}) {
-        {{ service_instance_name }}.delete{{ page_class_name }}({{ pk_field_java_name }});
+    /**
+     * 删除
+     */
+    @DeleteMapping("/{id}")
+    public ApiResponse<?> delete(@PathVariable("id") {{ pk_field_java_type }} id) {
+        {{ service_instance_name }}.delete(id);
+        return success();
+    }
+
+    /**
+     * 单条详情
+     */
+    @GetMapping("/{id}")
+    public ApiResponse<{{ dto_class_name }}> get(@PathVariable("id") {{ pk_field_java_type }} id) {
+        {{ dto_class_name }} data = {{ service_instance_name }}.getById(id);
+        if (data == null) {
+            return fail("404", "数据不存在");
+        }
+        return success(data);
     }
 }

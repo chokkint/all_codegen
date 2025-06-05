@@ -1,12 +1,34 @@
-package {{ package_name }}.service;
+package {{ page_package }}.service;
 
 import com.hg.common.base.BaseService;
-import {{ package_name }}.dto.{{ dto_class_name }};
-import java.util.List;
+import com.hg.common.page.PageRequestDTO;
+import com.hg.common.page.PageResult;
+import {{ page_package }}.dto.{{ dto_class_name }};
 
-public interface {{ service_class_name }} extends BaseService {
-    List<{{ dto_class_name }}> query{{ page_class_name }}({{ query_params_str }});
-    void add{{ page_class_name }}({{ dto_class_name }} dto);
-    void update{{ page_class_name }}({{ dto_class_name }} dto);
-    void delete{{ page_class_name }}({{ pk_field_java_type }} {{ pk_field_java_name }});
+public interface {{ service_class_name }} extends BaseService<{{ dto_class_name }}, {{ dto_class_name }}> {
+
+    /**
+     * 分页查询
+     */
+    PageResult<{{ dto_class_name }}> page(PageRequestDTO pageRequest, {{ dto_class_name }} queryParam);
+
+    /**
+     * 新增
+     */
+    {{ dto_class_name }} add({{ dto_class_name }} dto);
+
+    /**
+     * 修改
+     */
+    {{ dto_class_name }} update({{ dto_class_name }} dto);
+
+    /**
+     * 删除
+     */
+    void delete({{ pk_field_java_type }} id);
+
+    /**
+     * 单条详情
+     */
+    {{ dto_class_name }} getById({{ pk_field_java_type }} id);
 }

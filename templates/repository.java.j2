@@ -1,9 +1,13 @@
-package {{ package_name }}.repository;
+package {{ system_package }}.repository;
 
-import com.hg.common.base.BaseRepository;
-import {{ package_name }}.entity.{{ entity_class_name }};
+import {{ system_package }}.entity.{{ entity_class_name | default('ReplaceWithEntity') }};
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-public interface {{ repository_class_name }} extends BaseRepository<{{ entity_class_name }}, {{ pk_type }}> {
-    // DEBUG: pk_type is "{{ pk_type }}"
-    // 可扩展自定义方法
+@Repository
+public interface {{ repository_class_name | default('ReplaceWithRepository') }}
+    extends JpaRepository<{{ entity_class_name | default('ReplaceWithEntity') }}, {{ pk_field_java_type | default('Long') }}> {
+
+    // 可以自定义查询方法，例如：
+    // List<{{ entity_class_name | default('ReplaceWithEntity') }}> findBySomeField(String someField);
 }

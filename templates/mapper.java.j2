@@ -1,0 +1,28 @@
+package {{ system_package }}.mapper;
+
+import {{ system_package }}.entity.{{ entity_class_name }};
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import java.util.List;
+
+@Mapper
+public interface {{ mapper_class_name }} {
+
+    // 分页查询
+    List<{{ entity_class_name }}> queryPage(@Param("entity") {{ entity_class_name }} entity, @Param("offset") int offset, @Param("limit") int limit);
+
+    // 查询总数
+    long count(@Param("entity") {{ entity_class_name }} entity);
+
+    // 单条详情
+    {{ entity_class_name }} selectById(@Param("id") {{ pk_field_java_type }} id);
+
+    // 新增
+    int insert({{ entity_class_name }} entity);
+
+    // 更新
+    int update({{ entity_class_name }} entity);
+
+    // 删除
+    int deleteById(@Param("id") {{ pk_field_java_type }} id);
+}

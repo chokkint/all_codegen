@@ -5,13 +5,15 @@
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
     <version>{{ spring_boot_version }}</version>
-    <relativePath/> <!-- lookup parent from repository -->
+    <relativePath/>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <groupId>{{ group_id }}</groupId>
   <artifactId>{{ artifact_id }}</artifactId>
   <version>{{ version }}</version>
   <packaging>jar</packaging>
+  <name>{{ artifact_id }}</name>
+  <description>{{ system_name }} 微服务后端自动生成</description>
   <properties>
     <java.version>{{ java_version }}</java.version>
     <spring-boot.version>{{ spring_boot_version }}</spring-boot.version>
