@@ -1,13 +1,24 @@
 package {{ system_package }}.repository;
 
-import {{ system_package }}.entity.{{ entity_class_name | default('ReplaceWithEntity') }};
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import {{ system_package }}.entity.{{ entity_class_name }};
 
-@Repository
-public interface {{ repository_class_name | default('ReplaceWithRepository') }}
-    extends JpaRepository<{{ entity_class_name | default('ReplaceWithEntity') }}, {{ pk_field_java_type | default('Long') }}> {
+/**
+ * {{ entity_class_name }} 数据访问仓库（JPA自动生成）
+ * <p>
+ * 继承 JpaRepository 提供基础 CRUD
+ * 继承 JpaSpecificationExecutor 支持动态条件查询（Specification）
+ *
+ * 常用示例：
+ *   - findById(id)
+ *   - findAll(Specification, Pageable)
+ *   - save(entity)
+ * <p>
+ * 可在此扩展自定义查询方法
+ */
+public interface {{ repository_class_name }} extends JpaRepository<{{ entity_class_name }}, {{ pk_field_java_type }}>, JpaSpecificationExecutor<{{ entity_class_name }}> {
 
-    // 可以自定义查询方法，例如：
-    // List<{{ entity_class_name | default('ReplaceWithEntity') }}> findBySomeField(String someField);
+    // 可扩展自定义查询方法，如：
+    // List<{{ entity_class_name }}> findByStatus(String status);
 }

@@ -1,0 +1,167 @@
+package {{ system_package }}.common.service.impl;
+
+import com.hg.common.page.PageRequestDTO;
+import com.hg.common.page.PageResult;
+import com.hg.common.base.BaseService;
+import java.util.List;
+
+{% if orm == 'jpa' %}
+import com.hg.common.utils.BeanConvertUtils;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Optional;
+
+
+/**
+ * JPA通用业务实现基类
+ * 建议所有 JPA ServiceImpl 继承本类
+ * @param <T>  DTO类型
+ * @param <Q>  查询参数类型
+ * @param <E>  Entity类型
+ * @param <ID> 主键类型
+ */
+public abstract class BaseJpaServiceImpl<T, Q, E, ID> implements BaseService<T, Q, ID> {
+
+    protected final JpaRepository<E, ID> repository;
+
+    public BaseJpaServiceImpl(JpaRepository<E, ID> repository) {
+        this.repository = repository;
+    }
+
+    /**
+     * 分页查询（如需复杂查询请在子类重写本方法）
+     */
+    @Override
+    public PageResult<T> page(PageRequestDTO pageRequest, Q queryParam) {
+        Pageable pageable = toPageable(pageRequest);
+        // 这里只实现基础分页，如需复杂条件建议在具体业务ServiceImpl里实现
+        org.springframework.data.domain.Page<E> page = repository.findAll(pageable);
+        List<T> dtoList = BeanConvertUtils.convertList(page.getContent(), getDtoClass());
+        return new PageResult<>(dtoList, page.getTotalElements(), page.getNumber(), page.getSize());
+    }
+
+    /**
+     * 根据主键ID查询
+     */
+    @Override
+    public T findById(ID id) {
+        Optional<E> optional = repository.findById(id);
+        return optional.map(e -> BeanConvertUtils.convert(e, getDtoClass())).orElse(null);
+    }
+
+    /**
+     * 查询全部
+     */
+    @Override
+    public List<T> findAll() {
+        List<E> entityList = repository.findAll();
+        return BeanConvertUtils.convertList(entityList, getDtoClass());
+    }
+
+    /**
+     * 保存或更新
+     */
+    @Override
+    public T save(T dto) {
+        E entity = BeanConvertUtils.convert(dto, getEntityClass());
+        E saved = repository.save(entity);
+        return BeanConvertUtils.convert(saved, getDtoClass());
+    }
+
+    /**
+     * 根据主键ID删除
+     */
+    @Override
+    public void deleteById(ID id) {
+        repository.deleteById(id);
+    }
+
+    /**
+     * 分页参数转换（仅JPA实现用）
+     */
+    protected Pageable toPageable(PageRequestDTO pageRequest) {
+        int page = Math.max(0, pageRequest.getPageNum() - 1);
+        int size = pageRequest.getPageSize();
+        return PageRequest.of(page, size);
+    }
+
+    /**
+     * 获取DTO类，子类需实现
+     */
+    protected abstract Class<T> getDtoClass();
+
+    /**
+     * 获取Entity类，子类需实现
+     */
+    protected abstract Class<E> getEntityClass();
+}
+
+{% else %}
+ /**
+  * 通用MyBatis Service实现基类（自动生成，支持泛型扩展）
+  * @param <D> DTO
+  * @param <Q> QueryDTO
+  * @param <E> Entity
+  * @param <ID> 主键
+  */
+public abstract class BaseMybatisServiceImpl<D, Q, E, ID> implements BaseService<D, Q, ID> {
+
+    /**
+     * 子类需提供对应MyBatis Mapper
+     */
+    protected abstract Object getMapper();
+
+    /**
+     * 子类需提供 DTO Class
+     */
+    protected abstract Class<D> getDtoClass();
+
+    /**
+     * 子类需提供 Entity Class
+     */
+    protected abstract Class<E> getEntityClass();
+
+    @Override
+    public PageResult<D> page(PageRequestDTO pageRequest, Q queryParam) {
+        // 子类需实现具体分页查询逻辑
+        throw new UnsupportedOperationException("请在子类实现具体分页查询逻辑");
+    }
+
+    @Override
+    public D findById(ID id) {
+        // 子类需实现具体单查逻辑
+        throw new UnsupportedOperationException("请在子类实现findById");
+    }
+
+    @Override
+    public List<D> findAll() {
+        // 子类需实现具体全查逻辑
+        throw new UnsupportedOperationException("请在子类实现findAll");
+    }
+
+    @Override
+    public D add(D dto) {
+        // 子类需实现具体新增逻辑
+        throw new UnsupportedOperationException("请在子类实现add");
+    }
+
+    @Override
+    public D update(D dto) {
+        // 子类需实现具体更新逻辑
+        throw new UnsupportedOperationException("请在子类实现update");
+    }
+
+    @Override
+    public D save(D dto) {
+        // 子类可自定义保存逻辑
+        return add(dto);
+    }
+
+    @Override
+    public void deleteById(ID id) {
+        // 子类需实现具体删除逻辑
+        throw new UnsupportedOperationException("请在子类实现deleteById");
+    }
+}
+{% endif %}

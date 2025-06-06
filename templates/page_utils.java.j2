@@ -1,0 +1,90 @@
+package {{ system_package }}.common.page;
+
+import java.util.List;
+import com.hg.common.page.PageRequestDTO;
+import com.hg.common.page.PageResult;
+{% if orm == 'jpa' %}
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageImpl;
+{% endif %}
+
+/**
+ * 分页工具类（{{ 'JPA' if orm == 'jpa' else 'MyBatis' }})
+ * 自动生成，勿手动修改
+ *
+ * 用例说明：所有 ServiceImpl 层分页查询建议返回统一 PageResult 对象。
+ * 建议直接调用本类工具方法，封装分页与总数。
+ */
+public class PageUtils{{ 'Jpa' if orm == 'jpa' else 'Mybatis' }} {
+
+    {% if orm == 'jpa' %}
+    /**
+     * 将 List 数据直接包装成 Spring Data Page 对象
+     */
+    public static <T> Page<T> toPage(List<T> content, long total, Pageable pageable) {
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    /**
+     * 将 Spring Data Page 转为通用 PageResult
+     */
+    public static <T> PageResult<T> toPageResult(Page<T> page) {
+        return new PageResult<>(page.getContent(), page.getTotalElements(), page.getNumber() + 1, page.getSize());
+    }
+
+    /**
+     * List 直接转为 PageResult
+     */
+    public static <T> PageResult<T> toPageResult(List<T> content, long total, int pageNum, int pageSize) {
+       return new PageResult<>(content, total, pageNum, pageSize);
+    }
+
+    /**
+     * PageRequestDTO 转 Spring Data Pageable
+     * 保证 int 类型参数安全、兼容默认值
+     */
+    public static Pageable toPageable(PageRequestDTO pageRequest) {
+        int pageNum = 1;
+        int pageSize = 10;
+        if (pageRequest != null) {
+            pageNum = pageRequest.getPageNum();
+            if (pageNum <= 0) pageNum = 1;
+            pageSize = pageRequest.getPageSize();
+            if (pageSize <= 0) pageSize = 10;
+        }
+        // Spring Data JPA 页码从0开始
+        return org.springframework.data.domain.PageRequest.of(
+            Math.max(0, pageNum - 1),
+            Math.max(1, pageSize)
+        );
+    }
+    {% else %}
+    /**
+     * 组装分页结果
+     */
+    public static <T> PageResult<T> toPageResult(List<T> content, long total, int pageNum, int pageSize) {
+        PageResult<T> result = new PageResult<>();
+        result.setData(content);
+        result.setTotal(total);
+        result.setPageNum(pageNum);
+        result.setPageSize(pageSize);
+        return result;
+    }
+
+    /**
+     * 根据 PageRequestDTO 组装分页结果
+     */
+    public static <T> PageResult<T> toPageResult(List<T> content, long total, PageRequestDTO pageRequest) {
+        int pageNum = 1;
+        int pageSize = 10;
+        if (pageRequest != null) {
+            pageNum = pageRequest.getPageNum();
+            if (pageNum <= 0) pageNum = 1;
+            pageSize = pageRequest.getPageSize();
+            if (pageSize <= 0) pageSize = 10;
+        }
+        return toPageResult(content, total, pageNum, pageSize);
+    }
+    {% endif %}
+}

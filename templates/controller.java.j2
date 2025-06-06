@@ -6,32 +6,46 @@ import com.hg.common.response.ApiResponse;
 import com.hg.common.page.PageRequestDTO;
 import com.hg.common.page.PageResult;
 import {{ page_package }}.dto.{{ dto_class_name }};
+import {{ page_package }}.dto.{{ query_dto_class_name }};
 import {{ page_package }}.service.{{ service_class_name }};
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * {{ page_class_name }} 控制器
+ * 自动生成，勿手动修改
+ *
+ * 示例：分页 GET /api/{{ page_name }}/page?pageNum=1&pageSize=10&paramNo=xxx
+ */
 @RestController
 @RequestMapping("{{ api_prefix }}/{{ page_name | lower }}")
-public class {{ controller_class_name }} extends BaseController<{{ dto_class_name }}, {{ dto_class_name }}> {
+public class {{ controller_class_name }} extends BaseController<{{ dto_class_name }}, {{ query_dto_class_name }}, {{ pk_field_java_type }}> {
 
     @Autowired
     private {{ service_class_name }} {{ service_instance_name }};
 
     @Override
-    protected BaseService<{{ dto_class_name }}, {{ dto_class_name }}> getService() {
+    protected BaseService<{{ dto_class_name }}, {{ query_dto_class_name }}, {{ pk_field_java_type }}> getService() {
         return {{ service_instance_name }};
     }
 
     /**
      * 分页查询
+     * @param pageRequest 分页信息
+     * @param queryParam 查询条件
+     * @return 分页结果
+     * 示例请求：GET /api/{{ page_name }}/page?pageNum=1&pageSize=10
      */
     @GetMapping("/page")
-    public ApiResponse<PageResult<{{ dto_class_name }}>> page(PageRequestDTO pageRequest, {{ dto_class_name }} queryParam) {
+    public ApiResponse<PageResult<{{ dto_class_name }}>> page(PageRequestDTO pageRequest, {{ query_dto_class_name }} queryParam) {
         return success({{ service_instance_name }}.page(pageRequest, queryParam));
     }
 
     /**
      * 新增
+     * @param dto 新增数据对象
+     * @return 新增后的对象
+     * 示例请求：POST /api/{{ page_name }}，Body: JSON
      */
     @PostMapping
     public ApiResponse<{{ dto_class_name }}> add(@RequestBody {{ dto_class_name }} dto) {
@@ -41,6 +55,9 @@ public class {{ controller_class_name }} extends BaseController<{{ dto_class_nam
 
     /**
      * 修改
+     * @param dto 修改对象
+     * @return 修改后的对象
+     * 示例请求：PUT /api/{{ page_name }}，Body: JSON
      */
     @PutMapping
     public ApiResponse<{{ dto_class_name }}> update(@RequestBody {{ dto_class_name }} dto) {
@@ -50,19 +67,25 @@ public class {{ controller_class_name }} extends BaseController<{{ dto_class_nam
 
     /**
      * 删除
+     * @param id 主键ID
+     * @return 删除结果
+     * 示例请求：DELETE /api/{{ page_name }}/123
      */
     @DeleteMapping("/{id}")
     public ApiResponse<?> delete(@PathVariable("id") {{ pk_field_java_type }} id) {
-        {{ service_instance_name }}.delete(id);
+        {{ service_instance_name }}.deleteById(id);
         return success();
     }
 
     /**
-     * 单条详情
+     * 查询详情
+     * @param id 主键ID
+     * @return 单条数据详情
+     * 示例请求：GET /api/{{ page_name }}/123
      */
     @GetMapping("/{id}")
     public ApiResponse<{{ dto_class_name }}> get(@PathVariable("id") {{ pk_field_java_type }} id) {
-        {{ dto_class_name }} data = {{ service_instance_name }}.getById(id);
+        {{ dto_class_name }} data = {{ service_instance_name }}.findById(id);
         if (data == null) {
             return fail("404", "数据不存在");
         }

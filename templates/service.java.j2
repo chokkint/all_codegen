@@ -1,34 +1,24 @@
 package {{ page_package }}.service;
 
 import com.hg.common.base.BaseService;
-import com.hg.common.page.PageRequestDTO;
-import com.hg.common.page.PageResult;
 import {{ page_package }}.dto.{{ dto_class_name }};
+import {{ page_package }}.dto.{{ query_dto_class_name }};
 
-public interface {{ service_class_name }} extends BaseService<{{ dto_class_name }}, {{ dto_class_name }}> {
+/**
+ * {{ page_class_name }} 服务接口
+ * <p>
+ * 【自动生成，请勿手动修改】
+ * 用例说明：Controller 调用 Service 层，隔离业务逻辑，建议只保留业务相关接口扩展。
+ * <ul>
+ *   <li>基础增删改查方法已由 BaseService 提供</li>
+ *   <li>如有特有业务接口，请在此定义</li>
+ * </ul>
+ *
+ * @author 自动生成
+ */
+public interface {{ service_class_name }} extends BaseService<{{ dto_class_name }}, {{ query_dto_class_name }}, {{ pk_field_java_type }}> {
 
-    /**
-     * 分页查询
-     */
-    PageResult<{{ dto_class_name }}> page(PageRequestDTO pageRequest, {{ dto_class_name }} queryParam);
+    // 【扩展】业务特有接口在此定义。例如：
+    // {{ dto_class_name }} customQuery({{ query_dto_class_name }} query);
 
-    /**
-     * 新增
-     */
-    {{ dto_class_name }} add({{ dto_class_name }} dto);
-
-    /**
-     * 修改
-     */
-    {{ dto_class_name }} update({{ dto_class_name }} dto);
-
-    /**
-     * 删除
-     */
-    void delete({{ pk_field_java_type }} id);
-
-    /**
-     * 单条详情
-     */
-    {{ dto_class_name }} getById({{ pk_field_java_type }} id);
 }

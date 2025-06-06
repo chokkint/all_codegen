@@ -1,18 +1,28 @@
 package {{ system_package }}.entity;
 
 import com.hg.common.base.BaseEntity;
-import jakarta.persistence.*;  // Spring Boot 3.x
+{% if orm == 'jpa' %}
+import jakarta.persistence.*;
+{% endif %}
 
+/**
+ * {{ entity_class_name }} 实体类
+ * 自动生成，勿手动修改
+ */
+{% if orm == 'jpa' %}
 @Entity
 @Table(name = "{{ table_name }}")
+{% endif %}
 public class {{ entity_class_name }} extends BaseEntity {
 
 {% for field in fields %}
+    {%- if orm == 'jpa' %}
     @Column(name = "{{ field.db_column }}")
+    {%- endif %}
     private {{ field.java_type }} {{ field.java_name }};
 {% endfor %}
 
-    // 主键 getter，必须与 BaseEntity 保持一致
+    // 主键 getter/setter（与 BaseEntity 保持一致）
     @Override
     public {{ pk_field.java_type }} getId() {
         return this.{{ pk_field.java_name }};
@@ -25,7 +35,7 @@ public class {{ entity_class_name }} extends BaseEntity {
 {% for field in fields %}
     {% if field.java_name != pk_field.java_name %}
     public {{ field.java_type }} get{{ field.java_name|upper_first }}() {
-        return {{ field.java_name }};
+        return this.{{ field.java_name }};
     }
     public void set{{ field.java_name|upper_first }}({{ field.java_type }} {{ field.java_name }}) {
         this.{{ field.java_name }} = {{ field.java_name }};

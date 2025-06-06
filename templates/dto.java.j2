@@ -2,18 +2,26 @@ package {{ page_package|lower }}.dto;
 
 import com.hg.common.base.BaseDto;
 
+/**
+ * {{ dto_class_name }} DTO
+ * 自动生成，勿手动修改
+ */
 public class {{ dto_class_name }} extends BaseDto {
 
 {% for field in fields %}
+    /**
+     * {{ field.comment or field.java_name }}
+     */
     private {{ field.java_type }} {{ field.java_name }};
 {% endfor %}
 
-    // getter/setter
+    // Getter and Setter Methods
 {% for field in fields %}
 
     public {{ field.java_type }} get{{ field.java_name|upper_first }}() {
-        return {{ field.java_name }};
+        return this.{{ field.java_name }};
     }
+
     public void set{{ field.java_name|upper_first }}({{ field.java_type }} {{ field.java_name }}) {
         this.{{ field.java_name }} = {{ field.java_name }};
     }

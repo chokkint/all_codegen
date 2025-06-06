@@ -14,12 +14,14 @@
   <packaging>jar</packaging>
   <name>{{ artifact_id }}</name>
   <description>{{ system_name }} 微服务后端自动生成</description>
+
   <properties>
     <java.version>{{ java_version }}</java.version>
     <spring-boot.version>{{ spring_boot_version }}</spring-boot.version>
     <spring-cloud.version>{{ spring_cloud_version | default('2023.0.2') }}</spring-cloud.version>
     <spring-cloud-alibaba.version>{{ spring_cloud_alibaba_version | default('2022.0.0.0') }}</spring-cloud-alibaba.version>
   </properties>
+
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -38,38 +40,41 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+
   <dependencies>
 {% for dep in dependencies %}
     <dependency>
       <groupId>{{ dep.groupId }}</groupId>
       <artifactId>{{ dep.artifactId }}</artifactId>
-      {% if dep.version %}
-        <version>{{ dep.version }}</version>
-      {% endif %}
-      {% if dep.scope %}
-        <scope>{{ dep.scope }}</scope>
-      {% endif %}
+{% if dep.version %}
+      <version>{{ dep.version }}</version>
+{% endif %}
+{% if dep.scope %}
+      <scope>{{ dep.scope }}</scope>
+{% endif %}
     </dependency>
 {% endfor %}
   </dependencies>
+
   <build>
     <plugins>
 {% for plugin in plugins %}
       <plugin>
         <groupId>{{ plugin.groupId }}</groupId>
         <artifactId>{{ plugin.artifactId }}</artifactId>
-        {% if plugin.version %}
-          <version>{{ plugin.version }}</version>
-        {% endif %}
-        {% if plugin.configuration %}
-          <configuration>
-            {{ plugin.configuration | safe }}
-          </configuration>
-        {% endif %}
+{% if plugin.version %}
+        <version>{{ plugin.version }}</version>
+{% endif %}
+{% if plugin.configuration %}
+        <configuration>
+{{ plugin.configuration | safe | indent(10, True) }}
+        </configuration>
+{% endif %}
       </plugin>
 {% endfor %}
     </plugins>
   </build>
+
 {% if repositories %}
   <repositories>
 {% for repo in repositories %}

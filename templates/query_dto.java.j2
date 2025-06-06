@@ -1,27 +1,32 @@
-package {{ system_package }}.model;
+package {{ page_package }}.dto;
 
-import com.hg.common.base.BaseModel;
+import java.io.Serializable;
 
 /**
- * {{ model_class_name }} 业务模型
+ * {{ query_dto_class_name }} 查询参数对象
  * 自动生成，勿手动修改
  */
-public class {{ model_class_name }} extends BaseModel {
+public class {{ query_dto_class_name }} implements Serializable {
+    private static final long serialVersionUID = 1L;
 
 {% for field in fields %}
-    /**
-     * {{ field.comment or field.java_name }}
-     */
+    /** {{ field.label or field.java_name }} */
     private {{ field.java_type }} {{ field.java_name }};
 {% endfor %}
 
-    // Getter and Setter Methods
+    // ======= Getter and Setter =======
 {% for field in fields %}
 
+    /**
+     * 获取{{ field.label or field.java_name }}
+     */
     public {{ field.java_type }} get{{ field.java_name|upper_first }}() {
         return this.{{ field.java_name }};
     }
 
+    /**
+     * 设置{{ field.label or field.java_name }}
+     */
     public void set{{ field.java_name|upper_first }}({{ field.java_type }} {{ field.java_name }}) {
         this.{{ field.java_name }} = {{ field.java_name }};
     }

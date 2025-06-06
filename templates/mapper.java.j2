@@ -5,24 +5,59 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
+/**
+ * {{ entity_class_name }} Mapper
+ * 自动生成，勿手动修改
+ * 
+ * 典型用法：
+ *   - 分页、单查、增删改，支持 MyBatis XML 或注解
+ */
 @Mapper
 public interface {{ mapper_class_name }} {
 
-    // 分页查询
+    /**
+     * 分页查询
+     * @param entity 查询参数（可部分字段匹配）
+     * @param offset 起始行
+     * @param limit 每页条数
+     * @return 符合条件的实体列表
+     */
     List<{{ entity_class_name }}> queryPage(@Param("entity") {{ entity_class_name }} entity, @Param("offset") int offset, @Param("limit") int limit);
 
-    // 查询总数
+    /**
+     * 查询总数
+     * @param entity 查询参数
+     * @return 满足条件的记录数
+     */
     long count(@Param("entity") {{ entity_class_name }} entity);
 
-    // 单条详情
+    /**
+     * 单条详情
+     * @param id 主键ID
+     * @return 实体对象
+     */
     {{ entity_class_name }} selectById(@Param("id") {{ pk_field_java_type }} id);
 
-    // 新增
+    /**
+     * 新增
+     * @param entity 实体对象
+     * @return 插入行数
+     */
     int insert({{ entity_class_name }} entity);
 
-    // 更新
+    /**
+     * 更新
+     * @param entity 实体对象
+     * @return 更新行数
+     */
     int update({{ entity_class_name }} entity);
 
-    // 删除
+    /**
+     * 删除
+     * @param id 主键ID
+     * @return 删除行数
+     */
     int deleteById(@Param("id") {{ pk_field_java_type }} id);
+
+    // 可扩展自定义 SQL 方法，如批量操作、复杂联查等
 }

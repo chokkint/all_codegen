@@ -1,0 +1,149 @@
+package {{ page_package }}.service.impl;
+
+import {{ page_package }}.service.{{ service_class_name }};
+import {{ page_package }}.dto.{{ dto_class_name }};
+import {{ page_package }}.dto.{{ query_dto_class_name }};
+import {{ system_package }}.entity.{{ entity_class_name }};
+{% if orm == 'jpa' %}
+import {{ system_package }}.repository.{{ repository_class_name }};
+import org.springframework.data.jpa.domain.Specification;
+import {{ system_package }}.common.page.PageUtilsJpa;
+import java.util.Optional;
+{% else %}
+import {{ system_package }}.mapper.{{ mapper_class_name }};
+import {{ system_package }}.common.page.PageUtilsMybatis;
+{% endif %}
+import com.hg.common.page.PageRequestDTO;
+import com.hg.common.page.PageResult;
+import com.hg.common.utils.BeanConvertUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import java.util.List;
+
+
+/**
+ * {{ page_class_name }} {{ 'JPA' if orm == 'jpa' else 'MyBatis' }} Service 实现
+ *
+ * <p>【自动生成区域】【请勿手动修改】
+ *  - 由 SoftLineX/CodeGen 工具自动生成的 CRUD 基础实现，不建议改动。
+ *  - 如需业务扩展，请在最下方“// ========== 可扩展区域 ==========”下方自行添加方法。
+ */
+@Service
+public class {{ service_impl_class_name }} implements {{ service_class_name }} {
+
+    // ======= 自动注入数据访问对象（Repository/Mapper）=======
+    @Autowired
+    private {{ repository_class_name if orm == 'jpa' else mapper_class_name }} {{ 'repository' if orm == 'jpa' else 'mapper' }};
+
+    // ======= 自动生成：分页查询 =======
+    @Override
+    public PageResult<{{ dto_class_name }}> page(PageRequestDTO pageRequest, {{ query_dto_class_name }} queryParam) {
+        {% if orm == 'jpa' %}
+        // JPA 分页查询，动态条件通过 Specification 构建
+        Specification<{{ entity_class_name }}> spec = buildSpecification(queryParam);
+        org.springframework.data.domain.Pageable pageable = PageUtilsJpa.toPageable(pageRequest);
+        org.springframework.data.domain.Page<{{ entity_class_name }}> page = repository.findAll(spec, pageable);
+        List<{{ dto_class_name }}> dtoList = BeanConvertUtils.convertList(page.getContent(), {{ dto_class_name }}.class);
+        return PageUtilsJpa.toPageResult(dtoList, page.getTotalElements(), page.getNumber(), page.getSize());
+        {% else %}
+        // MyBatis 分页查询，mapper 需实现 queryPage/count 方法
+        int offset = (pageRequest.getPageNum() - 1) * pageRequest.getPageSize();
+        int limit = pageRequest.getPageSize();
+        List<{{ entity_class_name }}> entityList = mapper.queryPage(
+            BeanConvertUtils.convert(queryParam, {{ entity_class_name }}.class), offset, limit);
+        long total = mapper.count(BeanConvertUtils.convert(queryParam, {{ entity_class_name }}.class));
+        List<{{ dto_class_name }}> dtoList = BeanConvertUtils.convertList(entityList, {{ dto_class_name }}.class);
+        return PageUtilsMybatis.toPageResult(dtoList, total, pageRequest);
+        {% endif %}
+    }
+
+    // ======= 自动生成：主键详情 =======
+    @Override
+    public {{ dto_class_name }} findById({{ pk_field_java_type }} id) {
+        {% if orm == 'jpa' %}
+        Optional<{{ entity_class_name }}> opt = repository.findById(id);
+        return opt.map(e -> BeanConvertUtils.convert(e, {{ dto_class_name }}.class)).orElse(null);
+        {% else %}
+        {{ entity_class_name }} entity = mapper.selectById(id);
+        return BeanConvertUtils.convert(entity, {{ dto_class_name }}.class);
+        {% endif %}
+    }
+
+    // ======= 自动生成：全查 =======
+    @Override
+    public List<{{ dto_class_name }}> findAll() {
+        {% if orm == 'jpa' %}
+        List<{{ entity_class_name }}> entityList = repository.findAll();
+        {% else %}
+        List<{{ entity_class_name }}> entityList = mapper.queryPage(null, 0, Integer.MAX_VALUE);
+        {% endif %}
+        return BeanConvertUtils.convertList(entityList, {{ dto_class_name }}.class);
+    }
+
+    // ======= 自动生成：新增 =======
+    @Override
+    public {{ dto_class_name }} add({{ dto_class_name }} dto) {
+        {{ entity_class_name }} entity = BeanConvertUtils.convert(dto, {{ entity_class_name }}.class);
+        {% if orm == 'jpa' %}
+        entity = repository.save(entity);
+        {% else %}
+        mapper.insert(entity);
+        {% endif %}
+        return BeanConvertUtils.convert(entity, {{ dto_class_name }}.class);
+    }
+
+    // ======= 自动生成：修改 =======
+    @Override
+    public {{ dto_class_name }} update({{ dto_class_name }} dto) {
+        {{ entity_class_name }} entity = BeanConvertUtils.convert(dto, {{ entity_class_name }}.class);
+        {% if orm == 'jpa' %}
+        entity = repository.save(entity);
+        {% else %}
+        mapper.update(entity);
+        {% endif %}
+        return BeanConvertUtils.convert(entity, {{ dto_class_name }}.class);
+    }
+
+    // ======= 自动生成：保存/更新（可选，默认走add）=======
+    @Override
+    public {{ dto_class_name }} save({{ dto_class_name }} dto) {
+        // 如需区分新增/更新逻辑，请在此实现判定
+        return add(dto);
+    }
+
+    // ======= 自动生成：删除 =======
+    @Override
+    public void deleteById({{ pk_field_java_type }} id) {
+        {% if orm == 'jpa' %}
+        repository.deleteById(id);
+        {% else %}
+        mapper.deleteById(id);
+        {% endif %}
+    }
+    {% if orm == 'jpa' %}
+    // ======= JPA专用：动态条件构建方法 =======
+    /**
+     * 【自动生成】【可自定义扩展】
+     * JPA 动态查询条件构建，按需添加字段支持更复杂查询
+     */
+    protected Specification<{{ entity_class_name }}> buildSpecification({{ query_dto_class_name }} queryParam) {
+        return (root, query, cb) -> {
+            List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+            // ======= 以下字段自动生成，如需扩展，请直接补充即可 =======
+            {% for f in fields %}
+            if (queryParam.get{{ f.java_name|upper_first }}() != null) {
+                predicates.add(cb.equal(root.get("{{ f.name }}"), queryParam.get{{ f.java_name|upper_first }}()));
+            }
+            {% endfor %}
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+    }
+    {% endif %}
+
+    // ========== 可扩展区域 ==========
+    /**
+     * 【建议业务扩展区】
+     * 在此区域内，可安全添加业务自定义方法，不会被后续代码生成覆盖
+     */
+
+}
