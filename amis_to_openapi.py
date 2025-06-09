@@ -144,24 +144,20 @@ def extract_fields_from_list(lst):
     for item in lst:
         if isinstance(item, dict) and item.get('name'):
             fields.append({
-                'name': item['name'],
+                'name': item['name'],  # DTO字段名
+                'columnName': item.get('columnName', item['name']),  # 表字段名
                 'type': amis_type_to_java_type(item.get('type')),
                 'label': item.get('label', item['name']),
                 'description': item.get('label', item['name'])
             })
     return fields
 
-# ... 你的头部代码与类定义都保持不变 ...
-# 替换 extract_crud_apis 为如下递归提取函数
-
 CRUD_BEHAVIOR = set([
-    "insert", "add", "create",    # 新增
-    "edit", "update",             # 编辑
-    "delete", "remove",           # 删除
-    "view", "query", "get"        # 查、查看
+    "insert", "add", "create",
+    "edit", "update",
+    "delete", "remove",
+    "view", "query", "get"
 ])
-# 也可以根据你实际项目补充更全
-
 def get_behavior_from_node(node):
     behaviors = set()
     for k in ("behavior", "feat"):
@@ -170,7 +166,6 @@ def get_behavior_from_node(node):
             behaviors.update(x.lower() for x in v if isinstance(x, str))
         elif isinstance(v, str):
             behaviors.add(v.lower())
-    # editorSetting 里也可能有
     if isinstance(node.get("editorSetting"), dict):
         for k in ("behavior", "feat"):
             v = node["editorSetting"].get(k)
@@ -179,7 +174,6 @@ def get_behavior_from_node(node):
                     behaviors.update(x.lower() for x in v if isinstance(x, str))
                 elif isinstance(v, str):
                     behaviors.add(v.lower())
-    # 按钮里有 actionType
     if "actionType" in node and isinstance(node["actionType"], str):
         at = node["actionType"].lower()
         if at in {"add", "insert", "create", "edit", "update", "delete", "remove", "view", "ajax", "submit"}:
@@ -188,7 +182,6 @@ def get_behavior_from_node(node):
 
 def is_crud_behavior(behaviors):
     for b in behaviors:
-        # 允许更灵活的匹配（如 behavior = "Edit"、"edit" 都能匹配）
         if any(word in b for word in CRUD_BEHAVIOR):
             return True
     return False
@@ -198,12 +191,9 @@ def collect_crud_apis(node, apis=None, path="root"):
         apis = []
     if isinstance(node, dict):
         behaviors = get_behavior_from_node(node)
-        # 只采集有API且是CRUD行为的
         if "api" in node and isinstance(node["api"], dict):
-            # 有的API是嵌套在onEvent等结构里，不一定有behavior，但有method且是POST/PUT/DELETE/GET也可采集
             method = node["api"].get("method", "").lower()
             url = node["api"].get("url", "")
-            # 判断method和行为二者有其一即可
             if is_crud_behavior(behaviors) or method in {"post", "put", "delete", "get"}:
                 op = "query"
                 if method == "post": op = "add"
@@ -213,26 +203,22 @@ def collect_crud_apis(node, apis=None, path="root"):
                 apis.append({
                     "url": url,
                     "method": method,
-                    "fields": [],  # 字段可进一步抽取
+                    "fields": [],
                     "op": op,
                     "path": path
                 })
-        # 深入 onEvent
         if "onEvent" in node and isinstance(node["onEvent"], dict):
             for event, actions in node["onEvent"].items():
                 acts = actions.get("actions") if isinstance(actions, dict) else actions
                 if isinstance(acts, list):
                     for idx, a in enumerate(acts):
                         collect_crud_apis(a, apis, f"{path}.onEvent.{event}[{idx}]")
-        # 深入 dialog/drawer/form
         for k in ("dialog", "drawer", "form"):
             if k in node and isinstance(node[k], dict):
                 collect_crud_apis(node[k], apis, f"{path}.{k}")
-        # 深入 actions（按钮组）、body、columns、buttons 等
         for k in ("actions", "body", "columns", "buttons", "items"):
             if k in node and isinstance(node[k], (list, dict)):
                 collect_crud_apis(node[k], apis, f"{path}.{k}")
-        # 递归所有剩余子项
         for k, v in node.items():
             if k not in ("api", "onEvent", "dialog", "drawer", "form", "actions", "body", "columns", "buttons", "items"):
                 collect_crud_apis(v, apis, f"{path}.{k}")
@@ -240,7 +226,6 @@ def collect_crud_apis(node, apis=None, path="root"):
         for idx, item in enumerate(node):
             collect_crud_apis(item, apis, f"{path}[{idx}]")
     return apis
-
 
 def extract_table_name(crud_block, amis_file):
     if isinstance(crud_block, dict):
@@ -259,24 +244,29 @@ def amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector):
     openapis = []
     for idx, crud in enumerate(blocks):
         real_table_name = extract_table_name(crud, amis_file)
-        all_fields = collect_all_fields(crud)
+        # 优先用 columns 字段，其次可合并form/filter.body等（如有需求可拓展）
+        fields_objs = []
+        if 'columns' in crud:
+            fields_objs.extend(extract_fields_from_list(crud['columns']))
+        # 可扩展，合并form.body/filter.body的字段
+        if not fields_objs:
+            all_fields = collect_all_fields(crud)
+            fields_objs = [{'name': f, 'columnName': f, 'type': 'String', 'label': f} for f in all_fields]
+
         apis = collect_crud_apis(crud)
-        # 去重：同 url+method 的只保留一个
         unique = {}
         for a in apis:
             k = (a['url'], a['method'])
             if k not in unique:
                 unique[k] = a
         apis = list(unique.values())
-        stat.record_table(real_table_name, crud.get('type'), all_fields, apis)
-        # 生成 openapi 略，复用原来逻辑...
-        # ...你的原 paths/schema 构建部分代码不变...
-        # ...参考原函数...
+        stat.record_table(real_table_name, crud.get('type'), [f['name'] for f in fields_objs], apis)
+
         paths = {}
         for api in apis:
             url = api['url']
             method = api['method']
-            path_fields = [{'name': f, 'type': 'String', 'label': f} for f in all_fields]
+            path_fields = fields_objs
             if url not in paths:
                 paths[url] = {}
             if method == 'get':
@@ -342,11 +332,12 @@ def amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector):
         schema = {
             "type": "object",
             "properties": {
-                f: {
+                f['name']: {
                     "type": "string",
-                    "javaType": "String",
-                    "description": f
-                } for f in all_fields
+                    "javaType": f.get('type', 'String'),
+                    "description": f.get('label', f['name']),
+                    "columnName": f.get('columnName')
+                } for f in fields_objs
             }
         }
         openapis.append({
@@ -369,7 +360,6 @@ def print_conversion_summary(conversion_list, amis_dir, system_name, field_max=4
     print("\n========= 本次转换文件清单 =========")
     for idx, item in enumerate(conversion_list, 1):
         print(f"[{idx}] {item['file']}  ({item['table_name']}, {item['type']}, 字段: {item['field_count']}, API: {item['api_count']})")
-        # 字段处理：确保是列表
         field_list = item['fields']
         if isinstance(field_list, str):
             field_list = [s.strip() for s in field_list.split(',') if s.strip()]
@@ -378,7 +368,6 @@ def print_conversion_summary(conversion_list, amis_dir, system_name, field_max=4
         else:
             field_short = ', '.join(field_list)
         print(f"    字段: {field_short}")
-        # API处理：确保是列表
         apis = item['apis']
         if isinstance(apis, str):
             apis = [s.strip() for s in apis.split(',') if s.strip()]
@@ -388,8 +377,6 @@ def print_conversion_summary(conversion_list, amis_dir, system_name, field_max=4
             api_short = '\n           '.join(apis)
         print(f"    APIs: {api_short}\n")
     print("=" * 40)
-
-
 
 def main():
     parser = argparse.ArgumentParser(description="AMIS JSON 批量转 OpenAPI JSON，支持多系统多页面结构")
@@ -491,7 +478,6 @@ def main():
             except Exception as e:
                 print(f"[ERROR] 文件 {amis_file} 处理失败: {e}")
 
-    # 转换文件汇总表格
     print_conversion_summary(conversion_list, amis_dir, system_name)
 
 if __name__ == '__main__':

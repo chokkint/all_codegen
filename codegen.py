@@ -58,12 +58,23 @@ def get_fields_from_schema(schema):
         for fname, finfo in schema.get('properties', {}).items():
             fields.append({
                 'name': fname,
+                'columnName': finfo.get('columnName', fname),  # 新增: 取 columnName，无则兜底
                 'type': finfo.get('javaType', 'String'),
                 'label': finfo.get('description', fname),
-                'java_name': small_camel(fname),
+                'java_name': fname,          # 变量名直接用 name
                 'java_type': finfo.get('javaType', 'String'),
+                'primaryKey': finfo.get('primaryKey', False)
             })
-        return fields or [{'name': 'id', 'type': 'Long', 'java_name': 'id', 'java_type': 'Long', 'label': '主键ID'}]
+        # 如无字段, 返回 id 占位
+        return fields or [{
+            'name': 'id',
+            'columnName': 'ID',
+            'type': 'Long',
+            'java_name': 'id',
+            'java_type': 'Long',
+            'label': '主键ID',
+            'primaryKey': True
+        }]
     except Exception as e:
         print(f"[ERROR][字段解析失败] schema: {schema} - {e}")
         raise
@@ -107,11 +118,11 @@ def generate_system_level_code(env, backend_dir, java_root, model_class_name, fi
             'fields': [
                 {
                     'name': f['name'],
-                    'db_column': f['name'],
+                    'columnName': f.get('columnName', f['name']),
                     'type': f['java_type'],
-                    'java_name': f['java_name'],
+                    'java_name': f['name'],
                     'java_type': f['java_type'],
-                    'label': f.get('label', f['java_name']),
+                    'label': f.get('label', f['name']),
                     'primary_key': f.get('primaryKey', False)
                 }
                 for f in fields
@@ -140,50 +151,6 @@ def generate_system_level_code(env, backend_dir, java_root, model_class_name, fi
         print(traceback.format_exc())
         raise
 
-def generate_system_level_code_mybatis(env, backend_dir, java_root, model_class_name, fields, system_package, table_name):
-    try:
-        pk_field = get_primary_key_field(fields)
-        layers = {
-            'entity.java.j2': os.path.join('entity', f"{model_class_name}Entity.java"),
-            'model.java.j2': os.path.join('model', f"{model_class_name}Model.java"),
-        }
-        variables = {
-            'system_package': system_package,
-            'model_class_name': f"{model_class_name}Model",
-            'entity_class_name': f"{model_class_name}Entity",
-            'table_name': table_name,
-            'pk_field': pk_field,
-            'fields': [
-                {
-                    'name': f['name'],
-                    'db_column': f['name'],
-                    'type': f['java_type'],
-                    'java_name': f['java_name'],
-                    'java_type': f['java_type'],
-                    'label': f.get('label', f['java_name']),
-                    'primary_key': f.get('primaryKey', False)
-                }
-                for f in fields
-            ],
-        }
-        for key, sub_path in layers.items():
-            tgt_dir = os.path.join(backend_dir, java_root, os.path.dirname(sub_path))
-            os.makedirs(tgt_dir, exist_ok=True)
-            code = render_template(env, key, **variables)
-            out_path = os.path.join(tgt_dir, os.path.basename(sub_path))
-            with open(out_path, 'w', encoding='utf-8') as fw:
-                fw.write(code)
-        # BaseMybatisServiceImpl 统一输出到 common/service/impl/
-        base_mybatis_service_impl_dir = os.path.join(backend_dir, java_root, "common", "service", "impl")
-        os.makedirs(base_mybatis_service_impl_dir, exist_ok=True)
-        code = render_template(env, "base_mybatis_service_impl.java.j2", system_package=system_package)
-        with open(os.path.join(base_mybatis_service_impl_dir, "BaseMybatisServiceImpl.java"), 'w', encoding='utf-8') as fw:
-            fw.write(code)
-    except Exception as e:
-        print(f"[ERROR][实体/模型生成失败] model_class: {model_class_name} - {e}")
-        print(traceback.format_exc())
-        raise
-
 def get_query_fields_from_openapi(openapi):
     query_fields = []
     seen = set()
@@ -195,16 +162,17 @@ def get_query_fields_from_openapi(openapi):
                 if name not in seen:
                     query_fields.append({
                         'name': name,
+                        'columnName': p.get('columnName', name),  # 兼容参数可能无 columnName
                         'type': java_type,
                         'label': p.get('description', name),
-                        'java_name': small_camel(name),
+                        'java_name': name,
                         'java_type': java_type,
                     })
                     seen.add(name)
     if 'pageNum' not in seen:
-        query_fields.append({'name': 'pageNum', 'type': 'Integer', 'label': '页码', 'java_name': 'pageNum', 'java_type': 'Integer'})
+        query_fields.append({'name': 'pageNum', 'columnName': 'PAGE_NUM', 'type': 'Integer', 'label': '页码', 'java_name': 'pageNum', 'java_type': 'Integer'})
     if 'pageSize' not in seen:
-        query_fields.append({'name': 'pageSize', 'type': 'Integer', 'label': '页大小', 'java_name': 'pageSize', 'java_type': 'Integer'})
+        query_fields.append({'name': 'pageSize', 'columnName': 'PAGE_SIZE', 'type': 'Integer', 'label': '页大小', 'java_name': 'pageSize', 'java_type': 'Integer'})
     return query_fields
 
 def generate_for_page(env, backend_dir, java_root, system_name, page_name, openapi,
@@ -221,7 +189,6 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
         if not schema:
             print(f"[ERROR][未找到schema定义] system:{system_name}, page:{page_name}, schemas keys: {list(schemas.keys())}")
         fields = get_fields_from_schema(schema)
-
         query_fields = get_query_fields_from_openapi(openapi)
         query_dto_class_name = f"{model_class_name}QueryDTO"
         query_params = []
@@ -230,15 +197,16 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
                 for p in path.get('parameters', []):
                     query_params.append({
                         'java_type': p.get('schema', {}).get('type', 'String').capitalize(),
-                        'java_name': small_camel(p['name']),
+                        'java_name': p['name'],
                         'name': p['name'],
-                        'desc': p.get('description', p['name'])
+                        'desc': p.get('description', p['name']),
+                        'columnName': p.get('columnName', p['name']),
                     })
         query_params_str = ', '.join([f"{p['java_type']} {p['java_name']}" for p in query_params])
         query_param_names = [p['java_name'] for p in query_params]
 
         service_impl_class_name = f"{page_class_name}{'JpaServiceImpl' if orm == 'jpa' else 'MybatisServiceImpl'}"
-        service_instance_name = small_camel(page_class_name) + ('JpaService' if orm == 'jpa' else 'MybatisService')
+        service_instance_name = page_class_name[0].lower() + page_class_name[1:] + ('JpaService' if orm == 'jpa' else 'MybatisService')
         service_impl_template = 'service_impl.java.j2'
 
         variables = {
@@ -246,7 +214,7 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
             'page_package': page_package,
             'page_class_name': page_class_name,
             'model_class_name': model_class_name,
-            'mapper_instance_name': small_camel(f"{model_class_name}Mapper"),
+            'mapper_instance_name': f"{model_class_name[0].lower() + model_class_name[1:]}Mapper",
             'entity_class_name': f"{model_class_name}Entity",
             'fields': fields,
             'controller_class_name': f"{page_class_name}Controller",
@@ -431,7 +399,8 @@ def main():
             try:
                 code = render_template(env, 'application.java.j2',
                                    system_package=system_package,
-                                   app_class_name=app_class_name)
+                                   app_class_name=app_class_name,
+                                   system_name=system_name)
                 with open(os.path.join(app_java_dir, f"{app_class_name}.java"), 'w', encoding='utf-8') as fw:
                     fw.write(code)
                 resource_dir = os.path.join(backend_dir, 'src', 'main', 'resources')
@@ -487,7 +456,7 @@ def main():
                     ]
                     if args.orm == 'mybatis':
                         expected_structure.append(
-                            os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower(), 'mapper')
+                            os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower(), page_name.lower(), 'mapper')
                         )
                 check_consistency(output_dir, system_name, expected_structure)
             if args.zip:

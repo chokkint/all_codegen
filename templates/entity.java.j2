@@ -17,28 +17,28 @@ public class {{ entity_class_name }} extends BaseEntity {
 
 {% for field in fields %}
     {%- if orm == 'jpa' %}
-    @Column(name = "{{ field.db_column }}")
+    @Column(name = "{{ field.columnName }}")
     {%- endif %}
-    private {{ field.java_type }} {{ field.java_name }};
+    private {{ field.java_type }} {{ field.name }};
 {% endfor %}
 
     // 主键 getter/setter（与 BaseEntity 保持一致）
     @Override
     public {{ pk_field.java_type }} getId() {
-        return this.{{ pk_field.java_name }};
+        return this.{{ pk_field.name }};
     }
     public void setId({{ pk_field.java_type }} id) {
-        this.{{ pk_field.java_name }} = id;
+        this.{{ pk_field.name }} = id;
     }
 
     // 其它 getter/setter
 {% for field in fields %}
-    {% if field.java_name != pk_field.java_name %}
-    public {{ field.java_type }} get{{ field.java_name|upper_first }}() {
-        return this.{{ field.java_name }};
+    {% if field.name != pk_field.name %}
+    public {{ field.java_type }} get{{ field.name|upper_first }}() {
+        return this.{{ field.name }};
     }
-    public void set{{ field.java_name|upper_first }}({{ field.java_type }} {{ field.java_name }}) {
-        this.{{ field.java_name }} = {{ field.java_name }};
+    public void set{{ field.name|upper_first }}({{ field.java_type }} {{ field.name }}) {
+        this.{{ field.name }} = {{ field.name }};
     }
     {% endif %}
 {% endfor %}

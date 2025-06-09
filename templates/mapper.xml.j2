@@ -6,7 +6,7 @@
     <!-- ========== 字段映射关系 ========== -->
     <resultMap id="BaseResultMap" type="{{ system_package }}.entity.{{ entity_class_name }}">
     {% for field in fields %}
-        <result column="{{ field.name }}" property="{{ field.java_name }}"/>
+        <result column="{{ field.columnName }}" property="{{ field.name }}"/>
     {% endfor %}
     </resultMap>
 
@@ -14,13 +14,13 @@
     <select id="queryPage" resultMap="BaseResultMap">
         SELECT
         {% for field in fields %}
-            {{ field.name }}{% if not loop.last %}, {% endif %}
+            {{ field.columnName }}{% if not loop.last %}, {% endif %}
         {% endfor %}
         FROM {{ table_name }}
         <where>
         {% for field in fields %}
-            <if test="entity.{{ field.java_name }} != null">
-                AND {{ field.name }} = #{entity.{{ field.java_name }}}
+            <if test="entity.{{ field.name }} != null">
+                AND {{ field.columnName }} = #{entity.{{ field.name }}}
             </if>
         {% endfor %}
         </where>
@@ -33,8 +33,8 @@
         FROM {{ table_name }}
         <where>
         {% for field in fields %}
-            <if test="entity.{{ field.java_name }} != null">
-                AND {{ field.name }} = #{entity.{{ field.java_name }}}
+            <if test="entity.{{ field.name }} != null">
+                AND {{ field.columnName }} = #{entity.{{ field.name }}}
             </if>
         {% endfor %}
         </where>
@@ -44,7 +44,7 @@
     <select id="selectById" resultMap="BaseResultMap">
         SELECT
         {% for field in fields %}
-            {{ field.name }}{% if not loop.last %}, {% endif %}
+            {{ field.columnName }}{% if not loop.last %}, {% endif %}
         {% endfor %}
         FROM {{ table_name }}
         WHERE {{ pk_field_name }} = #{id}
@@ -55,13 +55,13 @@
         INSERT INTO {{ table_name }}
         (
         {% for field in fields %}
-            {{ field.name }}{% if not loop.last %}, {% endif %}
+            {{ field.columnName }}{% if not loop.last %}, {% endif %}
         {% endfor %}
         )
         VALUES
         (
         {% for field in fields %}
-            #{entity.{{ field.java_name }}}{% if not loop.last %}, {% endif %}
+            #{entity.{{ field.name }}}{% if not loop.last %}, {% endif %}
         {% endfor %}
         )
     </insert>
@@ -71,8 +71,8 @@
         UPDATE {{ table_name }}
         <set>
         {% for field in fields if not field.primary_key %}
-            <if test="entity.{{ field.java_name }} != null">
-                {{ field.name }} = #{entity.{{ field.java_name }}},
+            <if test="entity.{{ field.name }} != null">
+                {{ field.columnName }} = #{entity.{{ field.name }}},
             </if>
         {% endfor %}
         </set>
