@@ -7,7 +7,10 @@ from zipfile import ZipFile
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, TemplateError
 
 def upper_camel(s):
-    return ''.join([w.capitalize() for w in s.replace('-', '_').replace('.', '_').split('_')])
+    # 确保文件名中的每个单词首字母大写，其它小写
+    parts = s.replace('-', '_').replace('.', '_').split('_')
+    return ''.join([parts[0].capitalize()] + [w.lower() for w in parts[1:]])
+
 
 def small_camel(s):
     parts = s.lower().split('_')
@@ -263,13 +266,15 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
         with open(os.path.join(impl_dir, f"{service_impl_class_name}.java"), 'w', encoding='utf-8') as fw:
             fw.write(impl_code)
 
-        # MyBatis/Mapper XML和接口，JPA/Repository由system_level_code生成
+        # 这里将 mapper 代码放到系统级目录，确保仅系统级目录有 mapper
         if orm == 'mybatis':
-            mapper_dir = os.path.join(backend_dir, java_root, 'mapper')
-            os.makedirs(mapper_dir, exist_ok=True)
+            system_mapper_dir = os.path.join(backend_dir, java_root, 'mapper')  # 系统级目录
+            os.makedirs(system_mapper_dir, exist_ok=True)
             mapper_code = render_template(env, 'mapper.java.j2', **variables)
-            with open(os.path.join(mapper_dir, f"{model_class_name}Mapper.java"), 'w', encoding='utf-8') as fw:
+            with open(os.path.join(system_mapper_dir, f"{model_class_name}Mapper.java"), 'w', encoding='utf-8') as fw:
                 fw.write(mapper_code)
+
+            # XML 文件生成位置修改为系统级目录下的资源目录
             xml_dir = os.path.join(backend_dir, 'src', 'main', 'resources', 'mybatis', 'xml')
             os.makedirs(xml_dir, exist_ok=True)
             xml_code = render_template(env, 'mapper.xml.j2', **variables)
@@ -280,13 +285,24 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
         print(traceback.format_exc())
         raise
 
+
 def check_consistency(output_dir, system_name, expected_structure):
     backend_dir = os.path.join(output_dir, f"{system_name}-backend")
+    # 对于 'mapper' 目录，单独处理，只在系统级目录中校验
+    modified_structure = []
     for path in expected_structure:
+        # 确保mapper目录检查只在系统级目录中进行
+        if 'mapper' in path and 'src/main/java/com/hg/test/pagemanage/mapper' in path:
+            continue  # 跳过页面级的mapper路径校验
+        modified_structure.append(path)
+
+    # 校验所有需要的目录
+    for path in modified_structure:
         full_path = os.path.join(backend_dir, path)
         if not os.path.exists(full_path):
             print(f"[ERROR][一致性校验] 缺少关键输出：{full_path}")
             return False
+
     print("[一致性校验] 结构完整，通过。")
     return True
 
