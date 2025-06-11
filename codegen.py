@@ -5,16 +5,34 @@ import argparse
 import traceback
 from zipfile import ZipFile
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, TemplateError
+import re
+
+def find_schema_key(schemas, table_name):
+    camel_key = ''.join([x.capitalize() for x in table_name.split('_')])
+    if camel_key in schemas:
+        return camel_key
+    for k in schemas:
+        if k.lower() == camel_key.lower():
+            return k
+    if schemas:
+        return list(schemas.keys())[0]
+    return None
 
 def upper_camel(s):
-    # 确保文件名中的每个单词首字母大写，其它小写
+    """表名或其他下划线、连字符、点分隔字符串转驼峰（首字母大写）"""
+    if not s:
+        return ""
     parts = s.replace('-', '_').replace('.', '_').split('_')
-    return ''.join([parts[0].capitalize()] + [w.lower() for w in parts[1:]])
+    return ''.join([w.capitalize() for w in parts if w])
 
-
-def small_camel(s):
-    parts = s.lower().split('_')
-    return parts[0] + ''.join([w.capitalize() for w in parts[1:]])
+def page_model_name_from_file(page_name):
+    """
+    页面对象类名生成：如果有下划线或全小写则驼峰化，否则保持文件名原驼峰
+    """
+    if '_' in page_name or page_name.islower():
+        parts = page_name.replace('-', '_').split('_')
+        return ''.join([w.capitalize() for w in parts if w])
+    return page_name[0].upper() + page_name[1:]
 
 def get_primary_key_field(fields):
     for f in fields:
@@ -61,14 +79,13 @@ def get_fields_from_schema(schema):
         for fname, finfo in schema.get('properties', {}).items():
             fields.append({
                 'name': fname,
-                'columnName': finfo.get('columnName', fname),  # 新增: 取 columnName，无则兜底
+                'columnName': finfo.get('columnName', fname),
                 'type': finfo.get('javaType', 'String'),
                 'label': finfo.get('description', fname),
-                'java_name': fname,          # 变量名直接用 name
+                'java_name': fname,
                 'java_type': finfo.get('javaType', 'String'),
                 'primaryKey': finfo.get('primaryKey', False)
             })
-        # 如无字段, 返回 id 占位
         return fields or [{
             'name': 'id',
             'columnName': 'ID',
@@ -102,21 +119,21 @@ def extract_paths(openapi):
         print(f"[ERROR][路径解析失败] openapi: {openapi} - {e}")
         raise
 
-def generate_system_level_code(env, backend_dir, java_root, model_class_name, fields, system_package, table_name, orm):
+def generate_system_level_code(env, backend_dir, java_root, entity_model_name, fields, system_package, table_name, orm):
     try:
         pk_field = get_primary_key_field(fields)
         pk_type = pk_field['java_type'] if pk_field else 'Long'
         layers = {
-            'entity.java.j2': os.path.join('entity', f"{model_class_name}Entity.java"),
-            'model.java.j2': os.path.join('model', f"{model_class_name}Model.java"),
+            'entity.java.j2': os.path.join('entity', f"{entity_model_name}Entity.java"),
+            'model.java.j2': os.path.join('model', f"{entity_model_name}Model.java"),
         }
         if orm == 'jpa':
-            layers['repository.java.j2'] = os.path.join('repository', f"{model_class_name}Repository.java")
+            layers['repository.java.j2'] = os.path.join('repository', f"{entity_model_name}Repository.java")
         variables = {
             'system_package': system_package,
-            'model_class_name': f"{model_class_name}Model",
-            'entity_class_name': f"{model_class_name}Entity",
-            'repository_class_name': f"{model_class_name}Repository",
+            'model_class_name': f"{entity_model_name}Model",
+            'entity_class_name': f"{entity_model_name}Entity",
+            'repository_class_name': f"{entity_model_name}Repository",
             'table_name': table_name,
             'fields': [
                 {
@@ -142,7 +159,6 @@ def generate_system_level_code(env, backend_dir, java_root, model_class_name, fi
             out_path = os.path.join(tgt_dir, os.path.basename(sub_path))
             with open(out_path, 'w', encoding='utf-8') as fw:
                 fw.write(code)
-        # BaseServiceImpl 统一输出到 common/service/impl/
         base_service_impl_dir = os.path.join(backend_dir, java_root, "common", "service", "impl")
         os.makedirs(base_service_impl_dir, exist_ok=True)
         code = render_template(env, "base_service_impl.java.j2", system_package=system_package, orm=orm)
@@ -150,7 +166,7 @@ def generate_system_level_code(env, backend_dir, java_root, model_class_name, fi
         with open(os.path.join(base_service_impl_dir, fname), 'w', encoding='utf-8') as fw:
             fw.write(code)
     except Exception as e:
-        print(f"[ERROR][实体/仓库/模型生成失败] model_class: {model_class_name} - {e}")
+        print(f"[ERROR][实体/仓库/模型生成失败] model_class: {entity_model_name} - {e}")
         print(traceback.format_exc())
         raise
 
@@ -165,7 +181,7 @@ def get_query_fields_from_openapi(openapi):
                 if name not in seen:
                     query_fields.append({
                         'name': name,
-                        'columnName': p.get('columnName', name),  # 兼容参数可能无 columnName
+                        'columnName': p.get('columnName', name),
                         'type': java_type,
                         'label': p.get('description', name),
                         'java_name': name,
@@ -182,18 +198,27 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
                      base_package, app_class_name, artifact_id, orm='mybatis'):
     try:
         table_name = openapi.get('info', {}).get('tableName', page_name)
-        model_class_name = upper_camel(table_name)
-        page_class_name = upper_camel(page_name)
+        if not table_name:
+            raise Exception(f"OpenAPI info.tableName 为空，无法生成实体类名，page_name={page_name}")
+        entity_model_name = upper_camel(table_name)
+        if not entity_model_name:
+            raise Exception(f"表名 {table_name} 未能转换为有效类名，请检查 upper_camel 逻辑")
+        # 页面对象类名支持驼峰或自动驼峰化
+        page_model_name = page_model_name_from_file(page_name)
+        if not page_model_name:
+            raise Exception(f"页面名 {page_name} 未能转换为有效类名，请检查 page_model_name_from_file 逻辑")
+        print(f"[DEBUG] table_name: {table_name}, entity_model_name: {entity_model_name}, page_name: {page_name}, page_model_name: {page_model_name}")
+
         system_package = f"{base_package}.{system_name.lower()}"
         page_package = f"{system_package}.{page_name.lower()}"
         schemas = openapi.get('components', {}).get('schemas', {})
-        page_schema_key = upper_camel(page_name)
-        schema = schemas.get(page_schema_key, {}) or schemas.get(model_class_name, {})
+        schema_key = find_schema_key(schemas, table_name)
+        schema = schemas.get(schema_key, {})
         if not schema:
-            print(f"[ERROR][未找到schema定义] system:{system_name}, page:{page_name}, schemas keys: {list(schemas.keys())}")
+            print(f"[ERROR][未找到schema定义] system:{system_name}, page:{page_name}, schemas keys: {list(schemas.keys())}, page_schema_key: {schema_key}")
         fields = get_fields_from_schema(schema)
         query_fields = get_query_fields_from_openapi(openapi)
-        query_dto_class_name = f"{model_class_name}QueryDTO"
+        query_dto_class_name = f"{page_model_name}QueryDTO"
         query_params = []
         for path in extract_paths(openapi):
             if path['method'].lower() == 'get':
@@ -208,25 +233,27 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
         query_params_str = ', '.join([f"{p['java_type']} {p['java_name']}" for p in query_params])
         query_param_names = [p['java_name'] for p in query_params]
 
-        service_impl_class_name = f"{page_class_name}{'JpaServiceImpl' if orm == 'jpa' else 'MybatisServiceImpl'}"
-        service_instance_name = page_class_name[0].lower() + page_class_name[1:] + ('JpaService' if orm == 'jpa' else 'MybatisService')
+        service_impl_class_name = f"{page_model_name}{'JpaServiceImpl' if orm == 'jpa' else 'MybatisServiceImpl'}"
+        service_instance_name = page_model_name[0].lower() + page_model_name[1:] + ('JpaService' if orm == 'jpa' else 'MybatisService')
         service_impl_template = 'service_impl.java.j2'
 
         variables = {
             'system_package': system_package,
             'page_package': page_package,
-            'page_class_name': page_class_name,
-            'model_class_name': model_class_name,
-            'mapper_instance_name': f"{model_class_name[0].lower() + model_class_name[1:]}Mapper",
-            'entity_class_name': f"{model_class_name}Entity",
+            'entity_class_name': f"{entity_model_name}Entity",
+            'entity_model_name': entity_model_name,
+            'entity_mapper_name': f"{entity_model_name}Mapper",
+            'controller_class_name': f"{page_model_name}Controller",
+            'service_class_name': f"{page_model_name}Service",
+            'dto_class_name': f"{page_model_name}DTO",
+            'query_dto_class_name': query_dto_class_name,
             'fields': fields,
-            'controller_class_name': f"{page_class_name}Controller",
-            'service_class_name': f"{page_class_name}Service",
+            'controller_model_name': page_model_name,
+            'model_class_name': entity_model_name,
+            'mapper_instance_name': f"{entity_model_name[0].lower() + entity_model_name[1:]}Mapper",
             'service_impl_class_name': service_impl_class_name,
             'service_instance_name': service_instance_name,
-            'repository_class_name': f"{model_class_name}Repository",
-            'dto_class_name': f"{model_class_name}DTO",
-            'query_dto_class_name': query_dto_class_name,
+            'repository_class_name': f"{entity_model_name}Repository",
             'apis': extract_paths(openapi),
             'app_class_name': app_class_name,
             'artifact_id': artifact_id,
@@ -242,15 +269,15 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
         variables['pk_field_name'] = pk_field['name']
         variables['pk_field_java_name'] = pk_field['java_name']
         variables['pk_field_java_type'] = pk_field['java_type']
-        variables['mapper_class_name'] = f"{model_class_name}Mapper"
+        variables['mapper_class_name'] = f"{entity_model_name}Mapper"
 
         page_dir = os.path.join(backend_dir, java_root, page_name.lower())
 
         file_generate_plan = [
-            ('controller', 'controller.java.j2', f"{page_class_name}Controller.java", {}),
-            ('service', 'service.java.j2', f"{page_class_name}Service.java", {}),
-            ('dto', 'dto.java.j2', f"{model_class_name}DTO.java", {}),
-            ('dto', 'query_dto.java.j2', f"{model_class_name}QueryDTO.java", {'fields': query_fields, 'query_dto_class_name': query_dto_class_name}),
+            ('controller', 'controller.java.j2', f"{page_model_name}Controller.java", {}),
+            ('service', 'service.java.j2', f"{page_model_name}Service.java", {}),
+            ('dto', 'dto.java.j2', f"{page_model_name}DTO.java", {}),
+            ('dto', 'query_dto.java.j2', f"{query_dto_class_name}.java", {'fields': query_fields, 'query_dto_class_name': query_dto_class_name}),
         ]
         for subdir, template, fname, extra in file_generate_plan:
             tgt_dir = os.path.join(page_dir, subdir)
@@ -266,43 +293,34 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
         with open(os.path.join(impl_dir, f"{service_impl_class_name}.java"), 'w', encoding='utf-8') as fw:
             fw.write(impl_code)
 
-        # 这里将 mapper 代码放到系统级目录，确保仅系统级目录有 mapper
         if orm == 'mybatis':
-            system_mapper_dir = os.path.join(backend_dir, java_root, 'mapper')  # 系统级目录
+            system_mapper_dir = os.path.join(backend_dir, java_root, 'mapper')
             os.makedirs(system_mapper_dir, exist_ok=True)
             mapper_code = render_template(env, 'mapper.java.j2', **variables)
-            with open(os.path.join(system_mapper_dir, f"{model_class_name}Mapper.java"), 'w', encoding='utf-8') as fw:
+            with open(os.path.join(system_mapper_dir, f"{entity_model_name}Mapper.java"), 'w', encoding='utf-8') as fw:
                 fw.write(mapper_code)
-
-            # XML 文件生成位置修改为系统级目录下的资源目录
             xml_dir = os.path.join(backend_dir, 'src', 'main', 'resources', 'mybatis', 'xml')
             os.makedirs(xml_dir, exist_ok=True)
             xml_code = render_template(env, 'mapper.xml.j2', **variables)
-            with open(os.path.join(xml_dir, f"{model_class_name}Mapper.xml"), 'w', encoding='utf-8') as fw:
+            with open(os.path.join(xml_dir, f"{entity_model_name}Mapper.xml"), 'w', encoding='utf-8') as fw:
                 fw.write(xml_code)
     except Exception as e:
         print(f"[ERROR][页面代码生成失败] system:{system_name}, page:{page_name} - {e}")
         print(traceback.format_exc())
         raise
 
-
 def check_consistency(output_dir, system_name, expected_structure):
     backend_dir = os.path.join(output_dir, f"{system_name}-backend")
-    # 对于 'mapper' 目录，单独处理，只在系统级目录中校验
     modified_structure = []
     for path in expected_structure:
-        # 确保mapper目录检查只在系统级目录中进行
         if 'mapper' in path and 'src/main/java/com/hg/test/pagemanage/mapper' in path:
-            continue  # 跳过页面级的mapper路径校验
+            continue
         modified_structure.append(path)
-
-    # 校验所有需要的目录
     for path in modified_structure:
         full_path = os.path.join(backend_dir, path)
         if not os.path.exists(full_path):
             print(f"[ERROR][一致性校验] 缺少关键输出：{full_path}")
             return False
-
     print("[一致性校验] 结构完整，通过。")
     return True
 
@@ -362,7 +380,6 @@ def main():
             backend_dir = os.path.join(output_dir, artifact_id)
             java_root = os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower())
 
-            # 1. PageUtils 工具类统一用 page_utils.java.j2（内部分支生成）
             system_package = f"{base_package}.{system_name.lower()}"
             pageutils_dir = os.path.join(backend_dir, java_root, "common", "page")
             os.makedirs(pageutils_dir, exist_ok=True)
@@ -371,7 +388,6 @@ def main():
             with open(os.path.join(pageutils_dir, pageutils_cls), 'w', encoding='utf-8') as fw:
                 fw.write(code)
 
-            # 2. 其它实体、模型、仓库、基础服务实现（JPA/MyBatis自动切换）
             openapi_files = [f for f in os.listdir(sys_dir) if f.endswith('.json')]
             openapi_objs = []
             entity_keys = set()
@@ -381,34 +397,33 @@ def main():
                     file_path = os.path.join(sys_dir, file)
                     with open(file_path, encoding='utf-8') as f:
                         openapi = json.load(f)
-                    openapi_objs.append((page_name, openapi))
+                    table_name = openapi.get('info', {}).get('tableName', page_name)
+                    entity_model_name = upper_camel(table_name)
                     schemas = openapi.get('components', {}).get('schemas', {})
-                    page_schema_key = upper_camel(page_name)
-                    schema = schemas.get(page_schema_key, {})
+                    schema_key = find_schema_key(schemas, table_name)
+                    schema = schemas.get(schema_key, {})
                     if not schema:
-                        print(f"[ERROR][未找到schema定义] system:{system_name}, page:{page_name}, schemas keys: {list(schemas.keys())}, page_schema_key: {page_schema_key}")
+                        print(f"[ERROR][未找到schema定义] system:{system_name}, page:{page_name}, schemas keys: {list(schemas.keys())}, page_schema_key: {schema_key}")
                         continue
                     fields = get_fields_from_schema(schema)
-                    table_name = openapi.get('info', {}).get('tableName', page_name)
-                    model_class_name = upper_camel(table_name)
                     system_package = f"{base_package}.{system_name.lower()}"
-                    entity_key = f"{system_name.lower()}:{model_class_name}"
+                    entity_key = f"{system_name.lower()}:{entity_model_name}"
                     if entity_key not in entity_keys:
                         generate_system_level_code(
                             env,
                             backend_dir,
                             java_root,
-                            model_class_name,
+                            entity_model_name,
                             fields,
                             system_package,
                             table_name,
                             args.orm
                         )
                         entity_keys.add(entity_key)
+                    openapi_objs.append((page_name, openapi))
                 except Exception as e:
                     print(f"[ERROR][处理页面失败] system:{system_name}, file:{file} - {e}")
                     print(traceback.format_exc())
-            # 主类、application.yml、README.md
             app_java_dir = os.path.join(backend_dir, java_root)
             os.makedirs(app_java_dir, exist_ok=True)
             system_package = f"{base_package}.{system_name.lower()}"
@@ -436,7 +451,6 @@ def main():
             except Exception as e:
                 print(f"[ERROR][主类/配置文件生成失败] system:{system_name} - {e}")
                 print(traceback.format_exc())
-            # 页面级 controller/service/dto/impl/mapper 代码
             for page_name, openapi in openapi_objs:
                 try:
                     generate_for_page(
@@ -444,7 +458,7 @@ def main():
                         backend_dir,
                         java_root,
                         system_name.lower(),
-                        page_name.lower(),
+                        page_name,    # 保持原文件名格式
                         openapi,
                         base_package,
                         app_class_name,
@@ -454,7 +468,6 @@ def main():
                 except Exception as e:
                     print(f"[ERROR][生成页面代码失败] system:{system_name}, page:{page_name} - {e}")
                     print(traceback.format_exc())
-            # 结构一致性校验和打包
             if openapi_objs:
                 expected_structure = [
                     os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower(), 'entity'),

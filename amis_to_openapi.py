@@ -4,27 +4,22 @@ import json
 import argparse
 
 DEBUG_ON = False
+
 def debug(msg, *args):
     if DEBUG_ON:
         print("[DEBUG]", msg, *args)
 
-# ---- 对象收集辅助 ----
 class ObjectCollector:
     def __init__(self):
         self.objs = []
         self.all_types = set()
         self.all_fields = set()
-
     def record(self, typ, name, path, fields):
         self.objs.append({
-            "type": typ,
-            "name": name,
-            "path": path,
-            "fields": sorted(list(fields))
+            "type": typ, "name": name, "path": path, "fields": sorted(list(fields))
         })
         self.all_types.add(typ)
         self.all_fields.update(fields)
-
     def print_summary(self, prefix=""):
         print(f"\n==== AMIS对象统计 {prefix} ====")
         for o in self.objs:
@@ -40,25 +35,18 @@ class StatCollector:
         self.tables = []
         self.global_fields = set()
         self.global_attrs = set()
-
     def record_table(self, name, t, fields, apis):
         self.table_count += 1
         field_list = sorted(list(fields))
         api_list = [f"{a['op']}:{a['method']} {a['url']}" for a in apis]
         self.tables.append({
-            'name': name,
-            'type': t,
-            'field_count': len(fields),
-            'api_count': len(apis),
-            'field_list': field_list,
-            'api_list': api_list
+            'name': name, 'type': t, 'field_count': len(fields),
+            'api_count': len(apis), 'field_list': field_list, 'api_list': api_list
         })
         self.global_fields.update(field_list)
-
     def record_attrs(self, d):
         if isinstance(d, dict):
             self.global_attrs.update(d.keys())
-
     def print_summary(self, prefix="", show_attrs=False):
         print(f"\n==== 统计汇总 {prefix} ====")
         print("命中表格区块数量:", self.table_count)
@@ -71,10 +59,12 @@ class StatCollector:
         print("全局字段（所有提取字段）:", sorted(self.global_fields))
         print("====================\n")
 
-# 横向递归采集所有字段（仅dict带name的+递归list/dict所有下级）
+def upper_camel(s):
+    parts = s.replace('-', '_').replace('.', '_').split('_')
+    return ''.join([w[:1].upper() + w[1:] for w in parts if w])
+
 def collect_all_fields(node, fields=None):
-    if fields is None:
-        fields = set()
+    if fields is None: fields = set()
     if isinstance(node, dict):
         if 'name' in node and isinstance(node['name'], str):
             fields.add(node['name'])
@@ -85,41 +75,14 @@ def collect_all_fields(node, fields=None):
             collect_all_fields(item, fields)
     return fields
 
-# 递归收集所有 amis 对象及其字段
-def scan_amis_objects(node, collector, path="root"):
-    if isinstance(node, dict):
-        typ = node.get('type')
-        name = node.get('label', node.get('title', ''))
-        fields = set()
-        for k in ['columns', 'body', 'fields']:
-            v = node.get(k)
-            if v:
-                fields.update(collect_all_fields(v))
-        if typ in ('form', 'dialog', 'drawer'):
-            if 'body' in node:
-                fields.update(collect_all_fields(node['body']))
-        if typ:
-            collector.record(typ, name, path, fields)
-        for k, v in node.items():
-            scan_amis_objects(v, collector, f"{path}.{k}")
-    elif isinstance(node, list):
-        for idx, item in enumerate(node):
-            scan_amis_objects(item, collector, f"{path}[{idx}]")
-
-def camel_case(s):
-    parts = s.replace('-', '_').replace('.', '_').split('_')
-    return ''.join([w[:1].upper() + w[1:].lower() for w in parts if w])
-
 def amis_type_to_java_type(t):
     if t in ('input-date', 'input-datetime'):
         return 'java.util.Date'
-    if t in ('input-number',):
-        return 'Integer'
+    if t in ('input-number',): return 'Integer'
     return 'String'
 
 def is_table_crud_type(type_str):
-    if not isinstance(type_str, str):
-        return False
+    if not isinstance(type_str, str): return False
     t = type_str.lower()
     return t.startswith('crud') or t.startswith('table')
 
@@ -128,8 +91,7 @@ def find_table_crud_blocks(data, stat: StatCollector, path="root"):
     if isinstance(data, dict):
         t = data.get('type')
         stat.record_attrs(data)
-        if is_table_crud_type(t):
-            result.append(data)
+        if is_table_crud_type(t): result.append(data)
         for v in data.values():
             result.extend(find_table_crud_blocks(v, stat))
     elif isinstance(data, list):
@@ -139,18 +101,23 @@ def find_table_crud_blocks(data, stat: StatCollector, path="root"):
 
 def extract_fields_from_list(lst):
     fields = []
-    if not isinstance(lst, list):
-        return fields
+    if not isinstance(lst, list): return fields
     for item in lst:
         if isinstance(item, dict) and item.get('name'):
             fields.append({
-                'name': item['name'],  # DTO字段名
-                'columnName': item.get('columnName', item['name']),  # 表字段名
+                'name': item['name'],
+                'columnName': item.get('columnName', item['name']),
                 'type': amis_type_to_java_type(item.get('type')),
                 'label': item.get('label', item['name']),
                 'description': item.get('label', item['name'])
             })
     return fields
+
+def replace_base_url(url, base_url="http://your.base.url"):
+    url = url.replace("${base_url}", base_url)
+    url = url.replace("http://http://", "http://")
+    url = url.replace("https://https://", "https://")
+    return url
 
 CRUD_BEHAVIOR = set([
     "insert", "add", "create",
@@ -187,8 +154,7 @@ def is_crud_behavior(behaviors):
     return False
 
 def collect_crud_apis(node, apis=None, path="root"):
-    if apis is None:
-        apis = []
+    if apis is None: apis = []
     if isinstance(node, dict):
         behaviors = get_behavior_from_node(node)
         if "api" in node and isinstance(node["api"], dict):
@@ -227,13 +193,37 @@ def collect_crud_apis(node, apis=None, path="root"):
             collect_crud_apis(item, apis, f"{path}[{idx}]")
     return apis
 
-def extract_table_name(crud_block, amis_file):
-    if isinstance(crud_block, dict):
-        if 'tableName' in crud_block and isinstance(crud_block['tableName'], str):
-            return crud_block['tableName']
-    raise ValueError(f"[ERROR] amis文件 {amis_file} 缺少 tableName 字段，强制终止")
+def scan_amis_objects(node, collector, path="root"):
+    if isinstance(node, dict):
+        typ = node.get('type')
+        name = node.get('label', node.get('title', ''))
+        fields = set()
+        for k in ['columns', 'body', 'fields']:
+            v = node.get(k)
+            if v:
+                fields.update(collect_all_fields(v))
+        if typ in ('form', 'dialog', 'drawer'):
+            if 'body' in node:
+                fields.update(collect_all_fields(node['body']))
+        if typ:
+            collector.record(typ, name, path, fields)
+        for k, v in node.items():
+            scan_amis_objects(v, collector, f"{path}.{k}")
+    elif isinstance(node, list):
+        for idx, item in enumerate(node):
+            scan_amis_objects(item, collector, f"{path}[{idx}]")
 
-def amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector):
+def extract_main_table_name(amis_json, page_name):
+    # 优先 crud/table 的 tableName，没有就用 page_name
+    stat = StatCollector()
+    blocks = find_table_crud_blocks(amis_json, stat)
+    for crud in blocks:
+        if 'tableName' in crud and crud['tableName']:
+            return crud['tableName']
+    return page_name
+
+def amis_to_openapi(amis_json, page_name, amis_file, stat, obj_collector, base_url="http://your.base.url"):
+    # 关键点：实体名全部以表名大驼峰为准
     if isinstance(amis_json, list):
         amis_json = {"body": amis_json}
     scan_amis_objects(amis_json, obj_collector)
@@ -243,16 +233,14 @@ def amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector):
         raise ValueError("未发现 type 以 crud/table 开头的对象")
     openapis = []
     for idx, crud in enumerate(blocks):
-        real_table_name = extract_table_name(crud, amis_file)
-        # 优先用 columns 字段，其次可合并form/filter.body等（如有需求可拓展）
+        real_table_name = crud.get('tableName', page_name)
+        entity_name = upper_camel(real_table_name)  # 全部以表名大驼峰为主
         fields_objs = []
         if 'columns' in crud:
             fields_objs.extend(extract_fields_from_list(crud['columns']))
-        # 可扩展，合并form.body/filter.body的字段
         if not fields_objs:
             all_fields = collect_all_fields(crud)
             fields_objs = [{'name': f, 'columnName': f, 'type': 'String', 'label': f} for f in all_fields]
-
         apis = collect_crud_apis(crud)
         unique = {}
         for a in apis:
@@ -261,18 +249,27 @@ def amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector):
                 unique[k] = a
         apis = list(unique.values())
         stat.record_table(real_table_name, crud.get('type'), [f['name'] for f in fields_objs], apis)
-
         paths = {}
         for api in apis:
-            url = api['url']
+            url = replace_base_url(api['url'], base_url)
             method = api['method']
             path_fields = fields_objs
             if url not in paths:
                 paths[url] = {}
             if method == 'get':
+                summary = f"查询{entity_name}"
+            elif method == 'post':
+                summary = f"新增{entity_name}"
+            elif method == 'put':
+                summary = f"编辑{entity_name}"
+            elif method == 'delete':
+                summary = f"删除{entity_name}"
+            else:
+                summary = f"{method.upper()} {entity_name}"
+            if method == 'get':
                 paths[url][method] = {
                     "tags": [entity_name],
-                    "summary": "查询" + entity_name,
+                    "summary": summary,
                     "parameters": [
                         {
                             "name": f['name'],
@@ -285,7 +282,7 @@ def amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector):
                     ],
                     "responses": {
                         "200": {
-                            "description": "查询成功",
+                            "description": f"{entity_name} 查询成功",
                             "content": {
                                 "application/json": {
                                     "schema": {"$ref": f"#/components/schemas/{entity_name}"}
@@ -297,7 +294,7 @@ def amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector):
             elif method in ('post', 'put'):
                 paths[url][method] = {
                     "tags": [entity_name],
-                    "summary": ("新增" if api['op'] == 'add' else '编辑') + entity_name,
+                    "summary": summary,
                     "requestBody": {
                         "content": {
                             "application/json": {
@@ -316,7 +313,7 @@ def amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector):
             elif method == 'delete':
                 paths[url][method] = {
                     "tags": [entity_name],
-                    "summary": "删除" + entity_name,
+                    "summary": summary,
                     "parameters": [
                         {
                             "name": f['name'],
@@ -422,12 +419,13 @@ def main():
                     with open(amis_file, encoding='utf-8') as f:
                         amis_json = json.load(f)
                     page_name = os.path.splitext(fname)[0]
-                    entity_name = camel_case(page_name)
+                    table_name = extract_main_table_name(amis_json, page_name)
+                    entity_name = upper_camel(table_name)
                     stat = StatCollector()
                     obj_collector = ObjectCollector()
                     scan_amis_objects(amis_json, obj_collector)
                     obj_collector.print_summary(f"[{amis_file}]")
-                    openapi = amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector)
+                    openapi = amis_to_openapi(amis_json, page_name, amis_file, stat, obj_collector)
                     out_sys_path = os.path.join(out_dir, entry)
                     os.makedirs(out_sys_path, exist_ok=True)
                     out_file = os.path.join(out_sys_path, fname)
@@ -454,12 +452,13 @@ def main():
                 with open(amis_file, encoding='utf-8') as f:
                     amis_json = json.load(f)
                 page_name = os.path.splitext(entry)[0]
-                entity_name = camel_case(page_name)
+                table_name = extract_main_table_name(amis_json, page_name)
+                entity_name = upper_camel(table_name)
                 stat = StatCollector()
                 obj_collector = ObjectCollector()
                 scan_amis_objects(amis_json, obj_collector)
                 obj_collector.print_summary(f"[{amis_file}]")
-                openapi = amis_to_openapi(amis_json, entity_name, amis_file, stat, obj_collector)
+                openapi = amis_to_openapi(amis_json, page_name, amis_file, stat, obj_collector)
                 out_file = os.path.join(out_dir, entry)
                 with open(out_file, 'w', encoding='utf-8') as fw:
                     json.dump(openapi, fw, ensure_ascii=False, indent=2)
