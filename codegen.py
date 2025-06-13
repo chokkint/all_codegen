@@ -5,7 +5,6 @@ import argparse
 import traceback
 from zipfile import ZipFile
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, TemplateError
-import re
 
 def find_schema_key(schemas, table_name):
     camel_key = ''.join([x.capitalize() for x in table_name.split('_')])
@@ -203,12 +202,9 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
         entity_model_name = upper_camel(table_name)
         if not entity_model_name:
             raise Exception(f"表名 {table_name} 未能转换为有效类名，请检查 upper_camel 逻辑")
-        # 页面对象类名支持驼峰或自动驼峰化
         page_model_name = page_model_name_from_file(page_name)
         if not page_model_name:
             raise Exception(f"页面名 {page_name} 未能转换为有效类名，请检查 page_model_name_from_file 逻辑")
-        print(f"[DEBUG] table_name: {table_name}, entity_model_name: {entity_model_name}, page_name: {page_name}, page_model_name: {page_model_name}")
-
         system_package = f"{base_package}.{system_name.lower()}"
         page_package = f"{system_package}.{page_name.lower()}"
         schemas = openapi.get('components', {}).get('schemas', {})
@@ -293,6 +289,7 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
         with open(os.path.join(impl_dir, f"{service_impl_class_name}.java"), 'w', encoding='utf-8') as fw:
             fw.write(impl_code)
 
+        # MyBatis时，统一生成到 system 级 mapper 目录
         if orm == 'mybatis':
             system_mapper_dir = os.path.join(backend_dir, java_root, 'mapper')
             os.makedirs(system_mapper_dir, exist_ok=True)
@@ -310,13 +307,11 @@ def generate_for_page(env, backend_dir, java_root, system_name, page_name, opena
         raise
 
 def check_consistency(output_dir, system_name, expected_structure):
+    """
+    校验生成工程的目录结构完整性。只校验目录存在性，不校验文件内容。
+    """
     backend_dir = os.path.join(output_dir, f"{system_name}-backend")
-    modified_structure = []
     for path in expected_structure:
-        if 'mapper' in path and 'src/main/java/com/hg/test/pagemanage/mapper' in path:
-            continue
-        modified_structure.append(path)
-    for path in modified_structure:
         full_path = os.path.join(backend_dir, path)
         if not os.path.exists(full_path):
             print(f"[ERROR][一致性校验] 缺少关键输出：{full_path}")
@@ -468,12 +463,15 @@ def main():
                 except Exception as e:
                     print(f"[ERROR][生成页面代码失败] system:{system_name}, page:{page_name} - {e}")
                     print(traceback.format_exc())
+            # 一致性校验
             if openapi_objs:
                 expected_structure = [
                     os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower(), 'entity'),
                     os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower(), 'model'),
                     os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower(), 'common', 'page'),
                 ]
+                if args.orm == 'mybatis':
+                    expected_structure.append(os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower(), 'mapper'))
                 if args.orm == 'jpa':
                     expected_structure.append(os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower(), 'repository'))
                 for page_name, _ in openapi_objs:
@@ -483,10 +481,6 @@ def main():
                         os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower(), page_name.lower(), 'service', 'impl'),
                         os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower(), page_name.lower(), 'dto'),
                     ]
-                    if args.orm == 'mybatis':
-                        expected_structure.append(
-                            os.path.join('src', 'main', 'java', *args.package_prefix.split('.'), system_name.lower(), page_name.lower(), 'mapper')
-                        )
                 check_consistency(output_dir, system_name, expected_structure)
             if args.zip:
                 zip_path = os.path.join(output_dir, f"{artifact_id}.zip")
